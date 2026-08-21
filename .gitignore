@@ -1,0 +1,16 @@
+build/
+bin/
+out/
+.cache/
+
+.vscode/
+.idea/
+*.user
+
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.exe

@@ -1,0 +1,1 @@
+namespace Sierra { void modules_stub() {} }

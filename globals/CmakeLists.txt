@@ -1,0 +1,14 @@
+file(GLOB_RECURSE SOURCES "*.cpp" "*.h")
+add_library(puzzle_globals STATIC ${SOURCES})
+
+target_include_directories(puzzle_globals PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/external/glad/include
+)
+target_link_libraries(puzzle_globals PUBLIC 
+    puzzle_core
+    glad
+    glfw
+    OpenGL::GL
+)
