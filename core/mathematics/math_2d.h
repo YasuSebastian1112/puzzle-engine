@@ -3,6 +3,8 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ========================================================================= //
 
+#pragma once
+
 #include "math_functions.h"
 
 struct Vector2 {
@@ -22,7 +24,7 @@ struct Vector2 {
     _FORCE_INLINE_ float& operator[](int p_idx) {return p_idx?y:x;}
     _FORCE_INLINE_ const float& operator[](int p_idx) const {return p_idx?y:x;}
 
-
+    
     void normalize();
     Vector2 normalized() const;
 
