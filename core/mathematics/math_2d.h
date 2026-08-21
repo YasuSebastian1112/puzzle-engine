@@ -25,32 +25,32 @@ struct Vector2 {
     _FORCE_INLINE_ const float& operator[](int p_idx) const {return p_idx?y:x;}
 
     
-    void normalize();
-    Vector2 normalized() const;
+    void normalize(); // Convertir el vector en algo unitario
+    Vector2 normalized() const; // Devuelve el vector de manera unitaria sin modificarla
 
-    float length() const;
-    float length_squared() const;
+    float length() const; // Calcula la magnitud/longitud total del vector
+    float length_squared() const; // Retorna la logitud al cuadrado
 
-    float get_distance_to(const Vector2& p_vec2) const;
-    float get_distance_squared_to(const Vector2& p_vec2) const;
-    float get_angle_to(const Vector2& p_vec2) const;
-    float get_angle_to_point(const Vector2& p_vec2) const;
+    float get_distance_to(const Vector2& p_vec2) const; // Obtiene la distancia directa de un punto a otro
+    float get_distance_squared_to(const Vector2& p_vec2) const; // Obtiene la distancia cuadrada directa de un punto a otro
+    float get_angle_to(const Vector2& p_vec2) const; // Calcula el angulo relativo de diferencia de este vector a otro
+    float get_angle_to_point(const Vector2& p_vec2) const; // Devuelve el angulo hacia una posicion destino
 
     // Punto y escalar 2D
-    float dot(const Vector2& p_other) const;
-    float cross(const Vector2& p_other) const;
-    Vector2 cross(float p_other) const;
+    float dot(const Vector2& p_other) const; // Mide la alineacion de dos vectores
+    float cross(const Vector2& p_other) const; // Devuelve un escalar que indica si otro vector esta a la izquierda o derecha
+    Vector2 cross(float p_other) const; // Producto cruz entre un vector2D y un escalar; rota el vector 90° escalado
 
     // Angulos y rotacion
-    float angle() const;
-    Vector2 rotated(float p_radians) const;
-    Vector2 tangent() const;
-    Vector2 orthogonal() const;
-    float atan2() const;
+    float angle() const; // Retorna el angulo en radianes respecto al eje positivo X
+    Vector2 rotated(float p_radians) const; // Devuelve una copia del vector girada en el angulo especificado
+    Vector2 tangent() const; // Devuelve un vector perpendicular a tangente a la direccion actual
+    Vector2 orthogonal() const; // Devuelve un vector perpendicular a 90°
+    float atan2() const; // Obtiene el angulo del vector
 
     // Rebotes y reflexiones contra normales de colision
-    Vector2 reflect(const Vector2& p_normal) const;
-    Vector2 bounce(const Vector2& p_normal) const;
+    Vector2 reflect(const Vector2& p_normal) const; // Calcula la direccion reflejada
+    Vector2 bounce(const Vector2& p_normal) const; // Calcula la velocidad resultante de un rebote
 
     // Constantes
     static const Vector2 ZERO;
@@ -90,3 +90,6 @@ struct Vector2 {
 inline Vector2 operator*(float p_scalar, const Vector2 &p_v) { // return p_scalar * p_v
     return p_v * p_scalar;
 }
+
+using Point2 = Vector2;
+using Size = Vector2;
