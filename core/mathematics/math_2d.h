@@ -58,29 +58,35 @@ struct Vector2 {
     // Operadores aritmeticos de vector-vector
     Vector2 operator+(const Vector2& p_v) const;
     Vector2 operator-(const Vector2& p_v) const;
+    Vector2 operator-() const;
     Vector2 operator*(const Vector2& p_v) const;
     Vector2 operator/(const Vector2& p_v) const;
-    Vector2 operator-(const Vector2& p_v) const;
-    
+
     // Operadores aritmeticos vector-escalar
     Vector2 operator*(float p_scalar) const;
     Vector2 operator/(float p_scalar) const;
 
     // Asignacion compuesta
-    Vector2 operator+=(const Vector2& p_v);
-    Vector2 operator-=(const Vector2& p_v);
-    Vector2 operator*=(const Vector2& p_v);
-    Vector2 operator/=(const Vector2& p_v);
+    Vector2& operator+=(const Vector2& p_v);
+    Vector2& operator-=(const Vector2& p_v);
+    Vector2& operator*=(const Vector2& p_v);
+    Vector2& operator/=(const Vector2& p_v);
+    Vector2& operator*=(float p_scalar);
+    Vector2& operator/=(float p_scalar);
 
     // Comparadores
-    bool operator==(const Vector2& p_v);
-    bool operator!=(const Vector2& p_v);
-    bool operator<(const Vector2& p_v);
-    bool operator<=(const Vector2& p_v);
-    bool operator>(const Vector2& p_v);
-    bool operator>=(const Vector2& p_v);
+    bool operator==(const Vector2& p_v) const;
+    bool operator!=(const Vector2& p_v) const;
+    bool operator<(const Vector2& p_v) const;
+    bool operator<=(const Vector2& p_v) const;
+    bool operator>(const Vector2& p_v) const;
+    bool operator>=(const Vector2& p_v) const;
 
     // Constructores
     Vector2() : x(0.0f), y(0.0f) {}
     Vector2(float p_x, float p_y) : x(p_x), y(p_y) {}
 };
+
+inline Vector2 operator*(float p_scalar, const Vector2 &p_v) { // return p_scalar * p_v
+    return p_v * p_scalar;
+}
