@@ -37,3 +37,33 @@ float Vector2::get_distance_to(const Vector2& p_vec2) const {
 float Vector2::get_distance_squared_to(const Vector2& p_vec2) const {
     return (x - p_vec2.x) * (x - p_vec2.x) + (y - p_vec2.y) * (y - p_vec2.y);
 }
+
+float Vector2::get_angle_to(const Vector2& p_vec2) const {
+    return Math::atan2(Vector2::tangent().dot(p_vec2), Vector2::dot(p_vec2));
+}
+
+float Vector2::get_angle_to_point(const Vector2& p_vec2) const {
+    return Math::atan2(x- p_vec2.x, y - p_vec2.y);
+}
+
+// Vector2: Punto y escalar
+
+float Vector2::dot(const Vector2& p_other) const {
+    return x * p_other.x + y * p_other.y;
+}
+
+float Vector2::cross(const Vector2& p_other) const {
+    return x * p_other.y - y * p_other.x;
+}
+
+Vector2 Vector2::cross(float p_other) const {
+    return Vector2(p_other * y, -p_other * x);
+}
+
+// Vector2: Angulos y rotacion
+
+
+
+Vector2 Vector2::tangent() const {
+    return Vector2(y, -x);
+}

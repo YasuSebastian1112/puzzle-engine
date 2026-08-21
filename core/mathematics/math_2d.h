@@ -39,11 +39,14 @@ struct Vector2 {
     // Punto y escalar 2D
     float dot(const Vector2& p_other) const;
     float cross(const Vector2& p_other) const;
+    Vector2 cross(float p_other) const;
 
-    // Angulo y rotacion
+    // Angulos y rotacion
     float angle() const;
     Vector2 rotated(float p_radians) const;
+    Vector2 tangent() const;
     Vector2 orthogonal() const;
+    float atan2() const;
 
     // Rebotes y reflexiones contra normales de colision
     Vector2 reflect(const Vector2& p_normal) const;
@@ -51,7 +54,6 @@ struct Vector2 {
 
     // Constantes
     static const Vector2 ZERO;
-
 
     // Operadores aritmeticos de vector-vector
     Vector2 operator+(const Vector2& p_v) const;
