@@ -28,8 +28,8 @@ struct Vector2 {
     void normalize();
     Vector2 normalized() const;
 
-    float lenght() const;
-    float lenght_squared() const;
+    float length() const;
+    float length_squared() const;
 
     float get_distance_to(const Vector2& p_vec2) const;
     float get_distance_squared_to(const Vector2& p_vec2) const;

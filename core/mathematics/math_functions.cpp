@@ -8,11 +8,11 @@
 // Conversiones
 
 double Math::deg_to_rad(double p_deg) {
-    return p_deg*PI/180.0;
+    return p_deg * MathDefs::PI / 180.0;
 }
 
 double Math::rad_to_deg(double p_rad) {
-    return p_rad*180/PI;
+    return p_rad * 180 / MathDefs::PI;
 }
 
 // De operacion
@@ -36,8 +36,8 @@ bool Math::is_zero_approx(double p_val, double p_tolerance) {
 }
 
 double Math::angle_diference(double p_from, double p_to) {
-    double diff = Math::fmod(p_to - p_from, 2.0 * PI);
-    return Math::fmod(2.0 * diff, 2.0 * PI) - diff;
+    double diff = Math::fmod(p_to - p_from, 2.0 * MathDefs::PI);
+    return Math::fmod(2.0 * diff, 2.0 * MathDefs::PI) - diff;
 }
 
 double Math::sign(double p_x) {

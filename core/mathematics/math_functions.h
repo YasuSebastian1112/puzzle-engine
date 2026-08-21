@@ -3,13 +3,14 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ========================================================================= //
 
+#pragma once
+
 #include <cmath>
 #include "core/core.h"
-
-#define PI 3.14159265358979323846
+#include "math_definitions.h"
 
 class Math {
-
+public:
     Math() = delete;
 
     // Trigonometría
@@ -50,8 +51,8 @@ class Math {
     static inline double round(double p_n) noexcept {return std::round(p_n);}
     static inline double floor(double p_n) noexcept {return std::floor(p_n);}
     static inline double ceil(double p_n) noexcept {return std::ceil(p_n);}
-    static bool is_equal_approx(double p_a, double p_b, double p_tolerance = 0.00001);
-    static bool is_zero_approx(double p_val, double p_tolerance = 0.00001);
+    static bool is_equal_approx(double p_a, double p_b, double p_tolerance = MathDefs::CMP_EPSILON);
+    static bool is_zero_approx(double p_val, double p_tolerance = MathDefs::CMP_EPSILON);
     static double angle_diference(double p_from, double p_to);
     static double sign(double p_x);
 
