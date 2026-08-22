@@ -8,8 +8,12 @@
 #include <GLFW/glfw3.h>
 #include <string>
 
+#include "classes/object.h"
 
-class Window {
+class Window : public Object {
+
+    CLASS_TYPE(Window, Object);
+    
 public:
     enum class Type {
         Editor,

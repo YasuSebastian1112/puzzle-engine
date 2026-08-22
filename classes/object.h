@@ -10,6 +10,7 @@
 #include <functional>
 #include <vector>
 
+#include "core/variant.h"
 
 // La arquitectura de nodos se basa en la de Godot
 #define CLASS_TYPE(m_class, m_inherits) \

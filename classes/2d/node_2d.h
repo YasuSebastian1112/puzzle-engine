@@ -3,7 +3,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 class Node2D : public Spatial2D {
-    CLASS_TYPE(Node2D, Spatial2D)
+    
+    CLASS_TYPE(Node2D, Spatial2D);
 
 public:
     glm::vec2 position = {0.0f, 0.0f};
