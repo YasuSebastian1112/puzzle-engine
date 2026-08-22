@@ -7,6 +7,8 @@
 #include <string>
 #include <cstdint>
 
+#include "mathematics/math_2d.h"
+
 class Object;
 
 class Variant {
@@ -22,9 +24,14 @@ public:
         FLOAT,
         STRING,
 
+        // Espaciales
+
+        VECTOR2,
+
         // Otros tipos
 
         OBJECT
+
     };
 
     // Construir los tipos
@@ -33,6 +40,9 @@ public:
     Variant(int64_t v) : type(Type::INT), val_int(v) {}
     Variant(double v) : type(Type::FLOAT), val_float(v) {}
     Variant(const std::string& v) : type(Type::STRING), val_string(v) {}
+    
+    Variant(Vector2& v) : type(Type::VECTOR2) {};
+
     Variant(Object* v) : type(Type::OBJECT), val_object(v) {}
 
     // Obtener los tipos

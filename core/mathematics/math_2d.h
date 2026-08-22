@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include "math_functions.h"
 
 struct Vector2 {
@@ -91,5 +92,107 @@ inline Vector2 operator*(float p_scalar, const Vector2 &p_v) { // return p_scala
     return p_v * p_scalar;
 }
 
+// Sobrenombres para Vector2
 using Point2 = Vector2;
-using Size = Vector2;
+using Size2 = Vector2;
+
+
+struct Vector2i {
+    // Ejes
+    union {
+        int32_t x;
+        int32_t width;
+    };
+
+    union {
+        int32_t y;
+        int32_t height;
+    };
+
+    // Acceder como si fuesen indices
+    _FORCE_INLINE_ int32_t& operator[](int p_idx) { return p_idx ? y : x; }
+    _FORCE_INLINE_ const int32_t& operator[](int p_idx) const { return p_idx ? y : x; }
+
+    void normalize();
+    Vector2i normalized() const;
+
+    // Magnitud y distancias
+    float length() const; // Calcula la magnitud total
+    int64_t length_squared() const; // Retorna la longitud al cuadrado en 64 bits para evitar overflow
+
+    float get_distance_to(const Vector2i& p_vec2) const; // Distancia euclidiana directa
+    int64_t get_distance_squared_to(const Vector2i& p_vec2) const; // Distancia cuadrada directa
+    int32_t distance_manhattan_to(const Vector2i& p_vec2) const; // Distancia Manhattan en celdas (|dx| + |dy|)
+    float get_angle_to(const Vector2i& p_vec2) const; // Angulo relativo respecto a otro vector
+    float get_angle_to_point(const Vector2i& p_vec2) const; // Angulo hacia una celda destino
+
+    // Operaciones vectoriales 2D
+    int64_t dot(const Vector2i& p_other) const; // Producto punto
+    int64_t cross(const Vector2i& p_other) const; // Pseudo-producto cruz 2D
+    Vector2i cross(int32_t p_other) const;
+
+    // Angulos y rotacion
+    float angle() const; // Retorna el angulo en radianes
+    Vector2i rotated(float p_radians) const;
+    Vector2i tangent() const;
+    Vector2i orthogonal() const; // Devuelve un vector perpendicular a 90 grados (-y, x)
+    float atan2() const;
+    Vector2i abs() const; // Devuelve el vector con componentes absolutos
+    Vector2i sign() const; // Devuelve la direccion de signos (-1, 0, 1)
+
+    // Rebotes y reflexiones contra normales de colision
+    Vector2i reflect(const Vector2i& p_normal) const;
+    Vector2i bounce(const Vector2i& p_normal) const;
+
+    // Constantes
+    static const Vector2i ZERO;
+    static const Vector2i ONE;
+    static const Vector2i UP;
+    static const Vector2i DOWN;
+    static const Vector2i LEFT;
+    static const Vector2i RIGHT;
+
+    // Operadores aritmeticos vector-vector
+    Vector2i operator+(const Vector2i& p_v) const;
+    Vector2i operator-(const Vector2i& p_v) const;
+    Vector2i operator-() const;
+    Vector2i operator*(const Vector2i& p_v) const;
+    Vector2i operator/(const Vector2i& p_v) const;
+    Vector2i operator%(const Vector2i& p_v) const;
+
+    // Operadores aritmeticos vector-escalar
+    Vector2i operator*(int32_t p_scalar) const;
+    Vector2i operator/(int32_t p_scalar) const;
+    Vector2i operator%(int32_t p_scalar) const;
+
+    // Asignacion compuesta
+    Vector2i& operator+=(const Vector2i& p_v);
+    Vector2i& operator-=(const Vector2i& p_v);
+    Vector2i& operator*=(const Vector2i& p_v);
+    Vector2i& operator/=(const Vector2i& p_v);
+    Vector2i& operator%=(const Vector2i& p_v);
+    Vector2i& operator*=(int32_t p_scalar);
+    Vector2i& operator/=(int32_t p_scalar);
+    Vector2i& operator%=(int32_t p_scalar);
+
+    // Comparadores
+    bool operator==(const Vector2i& p_v) const;
+    bool operator!=(const Vector2i& p_v) const;
+    bool operator<(const Vector2i& p_v) const;
+    bool operator<=(const Vector2i& p_v) const;
+    bool operator>(const Vector2i& p_v) const;
+    bool operator>=(const Vector2i& p_v) const;
+
+    // Constructores
+    constexpr Vector2i() : x(0), y(0) {}
+    constexpr Vector2i(int32_t p_x, int32_t p_y) : x(p_x), y(p_y) {}
+    explicit Vector2i(const Vector2& p_vec2);
+};
+
+// Multiplicacion escalar conmutativa libre
+inline Vector2i operator*(int32_t p_scalar, const Vector2i& p_v) {
+    return p_v * p_scalar;
+}
+
+using Point2i = Vector2i;
+using Size2i  = Vector2i;
