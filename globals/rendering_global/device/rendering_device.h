@@ -5,22 +5,41 @@
 
 #pragma once
 
+#include <string>
+
 #include "core/variant.h"
 
+using WindowHandle = void*; // Puntero Hacia GLFWwindow
+
 class RenderingDevice { // Hacer llamadas para manejar opengl
+private:
+    WindowHandle native_window = nullptr;
+
 public:
 
-// Inicialización del loader (GLAD)
-    bool initialize();
+    // Creacion de ventanas
+    bool create_window(const std::string& p_title, const Size2i& p_size, const Point2i& p_pos);
+    void destroy_window();
+    void poll_events();
+    void swap_buffers();
+    bool window_should_close() const;
+
+    // Control de ventana desde el backend gráfico
+    void set_window_size(const Size2i& p_size);
+    void set_window_position(const Point2i& p_pos);
+    void set_window_title(const std::string& p_title);
+    void set_vsync(bool p_enabled);
 
     // Traducción de transformaciones y viewport
     void set_viewport(const Point2i &p_position, const Size2i &p_size);
     void set_clear_color(const Color &p_color);
     void clear_buffers(bool p_color = true, bool p_depth = true, bool p_stencil = false);
-
-    // Ajustes de estado comunes
     void set_scissor(const Point2i &p_position, const Size2i &p_size);
     void set_scissor_enabled(bool p_enabled);
     void set_blend_enabled(bool p_enabled);
 
+    WindowHandle get_native_handle() const { return native_window; }
+
+    RenderingDevice() = default;
+    ~RenderingDevice();
 };
