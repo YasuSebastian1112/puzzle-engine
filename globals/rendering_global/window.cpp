@@ -3,56 +3,66 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ========================================================================= //
 #include "window.h"
-#include <iostream>
 
+bool Window::initialize(const std::string& p_title, const Size2i& p_size, const Point2i& p_position, Type p_type) {
+    title = p_title;
+    size = p_size;
+    position = p_position;
+    type = p_type;
 
-void Window::framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
-}
-
-Window::Window(int w, int h, const std::string& t, Window::Type type)
-    : width(w), height(h), title(t), type(type) {
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    handle = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
-    if (!handle) {
-        std::cerr << "[Sierra Engine] Error al crear la ventana: " << title << "\n";
-        return;
+    if (!rendering_device.create_window(title, size, position)) {
+        return false;
     }
 
-    glfwSetWindowUserPointer(handle, this);
-    glfwSetFramebufferSizeCallback(handle, framebuffer_size_callback);
+    set_vsync(vsync);
+    return true;
 }
 
-Window::~Window() {
-    if (handle) {
-        glfwDestroyWindow(handle);
-        handle = nullptr;
-    }
-}
-
-bool Window::should_close() const {
-    return handle ? glfwWindowShouldClose(handle) : true;
-}
-
-void Window::make_current() {
-    if (handle) {
-        glfwMakeContextCurrent(handle);
-    }
+void Window::poll_events() {
+    rendering_device.poll_events();
 }
 
 void Window::swap_buffers() {
-    if (handle) {
-        glfwSwapBuffers(handle);
-    }
+    rendering_device.swap_buffers();
 }
 
-void Window::set_title(const std::string& new_title) {
-    title = new_title;
-    if (handle) {
-        glfwSetWindowTitle(handle, title.c_str());
-    }
+bool Window::should_close() const {
+    return rendering_device.window_should_close();
+}
+
+void Window::clear(const Color& p_color) {
+    rendering_device.set_clear_color(p_color);
+    rendering_device.clear_buffers(true, true, false);
+}
+
+void Window::set_title(const std::string& p_title) {
+    title = p_title;
+    rendering_device.set_window_title(title);
+}
+
+void Window::set_size(const Size2i& p_size) {
+    size = p_size;
+    rendering_device.set_window_size(size);
+    rendering_device.set_viewport(Point2i(0, 0), size);
+}
+
+void Window::set_position(const Point2i& p_pos) {
+    position = p_pos;
+    rendering_device.set_window_position(position);
+}
+
+void Window::set_vsync(bool p_enabled) {
+    vsync = p_enabled;
+    rendering_device.set_vsync(vsync);
+}
+
+Window::Window() {
+    title = "Puzzle Engine Window";
+    size = Size2i(1280, 720);
+    position = Point2i(100, 100);
+    type = Type::Custom;
+}
+
+Window::~Window() {
+    rendering_device.destroy_window();
 }

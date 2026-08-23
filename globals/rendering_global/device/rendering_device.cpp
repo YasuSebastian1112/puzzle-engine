@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+// Creacion de ventanas
 
 bool RenderingDevice::create_window(const std::string& p_title, const Size2i& p_size, const Point2i& p_pos) {
     if (!glfwInit()) {
@@ -15,7 +16,7 @@ bool RenderingDevice::create_window(const std::string& p_title, const Size2i& p_
         return false;
     }
 
-    // Configuración OpenGL (Para Vulkan se cambiaría a GLFW_NO_API)
+    // Configuración OpenGL
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -65,6 +66,8 @@ bool RenderingDevice::window_should_close() const {
     return native_window ? glfwWindowShouldClose(static_cast<GLFWwindow*>(native_window)) : true;
 }
 
+// Control de ventana desde el backend gráfico
+
 void RenderingDevice::set_window_size(const Size2i& p_size) {
     if (native_window) {
         glfwSetWindowSize(static_cast<GLFWwindow*>(native_window), p_size.width, p_size.height);
@@ -86,6 +89,8 @@ void RenderingDevice::set_window_title(const std::string& p_title) {
 void RenderingDevice::set_vsync(bool p_enabled) {
     glfwSwapInterval(p_enabled ? 1 : 0);
 }
+
+// Traducción de transformaciones y viewport
 
 void RenderingDevice::set_viewport(const Point2i& p_position, const Size2i& p_size) {
     glViewport(
@@ -129,4 +134,10 @@ void RenderingDevice::set_blend_enabled(bool p_enabled) {
     } else {
         glDisable(GL_BLEND);
     }
+}
+
+// Destructor
+
+RenderingDevice::~RenderingDevice() {
+    destroy_window();
 }
