@@ -10,7 +10,7 @@
 
 // Creacion de ventanas
 
-bool RenderingDevice::create_window(const std::string& p_title, const Size2i& p_size, const Point2i& p_pos) {
+bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size, const Point2i& p_pos) {
     if (!glfwInit()) {
         std::cerr << "[RenderingDevice] Error al inicializar GLFW" << std::endl;
         return false;
@@ -37,6 +37,8 @@ bool RenderingDevice::create_window(const std::string& p_title, const Size2i& p_
         std::cerr << "[RenderingDevice] Error al inicializar GLAD" << std::endl;
         return false;
     }
+    
+    init_geometry_pipeline();
 
     set_viewport(Point2i(0, 0), p_size);
     set_blend_enabled(true);
@@ -80,7 +82,7 @@ void RenderingDevice::set_window_position(const Point2i& p_pos) {
     }
 }
 
-void RenderingDevice::set_window_title(const std::string& p_title) {
+void RenderingDevice::set_window_title(const String& p_title) {
     if (native_window) {
         glfwSetWindowTitle(static_cast<GLFWwindow*>(native_window), p_title.c_str());
     }
@@ -134,6 +136,110 @@ void RenderingDevice::set_blend_enabled(bool p_enabled) {
     } else {
         glDisable(GL_BLEND);
     }
+}
+
+// Formas
+
+// En rendering_device.cpp
+
+static const char* vertex_shader_src = R"(
+#version 330 core
+layout (location = 0) in vec2 a_pos;
+layout (location = 1) in vec4 a_color;
+layout (location = 2) in vec2 a_uv;
+
+out vec4 v_color;
+
+uniform mat4 u_projection;
+
+void main() {
+    v_color = a_color;
+    gl_Position = u_projection * vec4(a_pos, 0.0, 1.0);
+}
+)";
+
+static const char* fragment_shader_src = R"(
+#version 330 core
+in vec4 v_color;
+out vec4 FragColor;
+
+void main() {
+    FragColor = v_color;
+}
+)";
+
+void RenderingDevice::init_geometry_pipeline() {
+    // 1. Compilar shaders
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &vertex_shader_src, nullptr);
+    glCompileShader(vs);
+
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &fragment_shader_src, nullptr);
+    glCompileShader(fs);
+
+    geom_shader = glCreateProgram();
+    glAttachShader(geom_shader, vs);
+    glAttachShader(geom_shader, fs);
+    glLinkProgram(geom_shader);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    // 2. Crear VAO, VBO y EBO dinámicos
+    glGenVertexArrays(1, &geom_vao);
+    glGenBuffers(1, &geom_vbo);
+    glGenBuffers(1, &geom_ebo);
+
+    glBindVertexArray(geom_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, geom_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
+
+    // Layout: Position (Vector2 = 2 floats)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)0);
+
+    // Layout: Color (Color = 4 floats)
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * 2));
+
+    // Layout: UV (Vector2 = 2 floats)
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * 6));
+
+    glBindVertexArray(0);
+}
+
+void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_bytes, const uint32_t* p_indices, size_t p_index_count) {
+    if (!p_vertices || p_index_count == 0) return;
+
+    glUseProgram(geom_shader);
+
+    // Matriz ortográfica 2D (0, 0 en esquina superior izquierda)
+    // Coordenadas de pantalla: X de 0 a 1280, Y de 0 a 720
+    float left = 0.0f, right = 1280.0f, bottom = 720.0f, top = 0.0f;
+    float ortho_mat[16] = {
+        2.0f / (right - left), 0.0f, 0.0f, 0.0f,
+        0.0f, 2.0f / (top - bottom), 0.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        -(right + left) / (right - left), -(top + bottom) / (top - bottom), 0.0f, 1.0f
+    };
+
+    GLint proj_loc = glGetUniformLocation(geom_shader, "u_projection");
+    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, ortho_mat);
+
+    glBindVertexArray(geom_vao);
+
+    // Subir datos dinámicos a la GPU
+    glBindBuffer(GL_ARRAY_BUFFER, geom_vbo);
+    glBufferData(GL_ARRAY_BUFFER, p_vertex_bytes, p_vertices, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, p_index_count * sizeof(uint32_t), p_indices, GL_DYNAMIC_DRAW);
+
+    // Dibujar
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(p_index_count), GL_UNSIGNED_INT, 0);
+
+    glBindVertexArray(0);
 }
 
 // Destructor

@@ -40,7 +40,7 @@ Node* Node::get_child(size_t index) const { // Localizar y retornar el hijo
     return nullptr;
 }
 
-std::string Node::get_path() const { // Obtener la ruta del hijo
+String Node::get_path() const { // Obtener la ruta del hijo
     if (!parent) return "/" + name;
     return parent->get_path() + "/" + name;
 }
@@ -62,7 +62,7 @@ void Node::propagate_process(float delta) { // Llamar cada delta time
     }
 }
 
-Node::Node(const std::string& node_name) : name(node_name), parent(nullptr), is_ready(false) {
+Node::Node(const String& node_name) : name(node_name), parent(nullptr), is_ready(false) {
 }
 
 Node::~Node() {

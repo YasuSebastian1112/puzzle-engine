@@ -22,6 +22,6 @@ public:
         return local;
     }
 
-    Node2D(const std::string& node_name = "Node2D") 
+    Node2D(const String& node_name = "Node2D") 
         : Spatial2D(node_name) {}
 };

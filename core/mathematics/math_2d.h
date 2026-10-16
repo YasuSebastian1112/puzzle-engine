@@ -8,6 +8,7 @@
 #include <cstdint>
 #include "math_functions.h"
 
+
 struct Vector2 {
     
     // Ejes
@@ -84,8 +85,8 @@ struct Vector2 {
     bool operator>=(const Vector2& p_v) const;
 
     // Constructores
-    Vector2() : x(0.0f), y(0.0f) {}
-    Vector2(float p_x, float p_y) : x(p_x), y(p_y) {}
+    constexpr Vector2() : x(0.0f), y(0.0f) {}
+    constexpr Vector2(float p_x, float p_y) : x(p_x), y(p_y) {}
 };
 
 inline Vector2 operator*(float p_scalar, const Vector2 &p_v) { // return p_scalar * p_v
@@ -196,3 +197,51 @@ inline Vector2i operator*(int32_t p_scalar, const Vector2i& p_v) {
 
 using Point2i = Vector2i;
 using Size2i  = Vector2i;
+
+struct Rect2 {
+    Vector2 position;
+    Vector2 size;
+
+    // --- Constructores e Inline rápidos ---
+    constexpr Rect2() : position(0.0f, 0.0f), size(0.0f, 0.0f) {}
+    constexpr Rect2(float p_x, float p_y, float p_width, float p_height)
+        : position(p_x, p_y), size(p_width, p_height) {}
+    constexpr Rect2(const Vector2& p_position, const Vector2& p_size)
+        : position(p_position), size(p_size) {}
+
+    Vector2 get_position() const { return position; }
+    void set_position(const Vector2& p_pos) { position = p_pos; }
+
+    Vector2 get_size() const { return size; }
+    void set_size(const Vector2& p_size) { size = p_size; }
+
+    Vector2 get_end() const { return position + size; }
+    void set_end(const Vector2& p_end) { size = p_end - position; }
+
+    Vector2 get_center() const { return position + (size * 0.5f); }
+
+    float get_area() const { return size.x * size.y; }
+    bool has_area() const { return size.x > 0.0f && size.y > 0.0f; }
+
+    bool has_point(const Vector2& p_point) const {
+        return (p_point.x >= position.x && p_point.x < position.x + size.x &&
+                p_point.y >= position.y && p_point.y < position.y + size.y);
+    }
+
+    bool operator==(const Rect2& p_other) const {
+        return position == p_other.position && size == p_other.size;
+    }
+
+    bool operator!=(const Rect2& p_other) const {
+        return !(*this == p_other);
+    }
+
+    // --- Métodos complejos (implementados en math_2d.cpp) ---
+    Rect2 abs() const;
+    bool intersects(const Rect2& p_other) const;
+    bool encloses(const Rect2& p_other) const;
+    Rect2 intersection(const Rect2& p_other) const;
+    Rect2 merge(const Rect2& p_other) const;
+    Rect2 expand(const Vector2& p_vector) const;
+    Rect2 grow(float p_by) const;
+};

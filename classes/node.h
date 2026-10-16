@@ -27,22 +27,22 @@ public:
     Node* get_child(size_t index) const;
 
     // Gestion del nodo
-    const std::string& get_name() const {return name;}
-    void set_name(const std::string& new_name) {name = new_name;}
-    std::string get_path() const;
+    const String& get_name() const {return name;}
+    void set_name(const String& new_name) {name = new_name;}
+    String get_path() const;
 
     // Ejecucion Interna
     void propagate_ready();
     void propagate_process(float delta);
 
 
-    Node(const std::string& node_name = "Node");
+    Node(const String& node_name = "Node");
     virtual ~Node() override;
 
 private:
 
     // Datos del nodo
-    std::string name;
+    String name;
     Node* parent = nullptr;
     std::vector<Node*> children;
     bool is_ready = false;

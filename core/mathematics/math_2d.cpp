@@ -384,3 +384,95 @@ bool Vector2i::operator>(const Vector2i& p_v) const {
 bool Vector2i::operator>=(const Vector2i& p_v) const {
     return (x == p_v.x) ? (y >= p_v.y) : (x > p_v.x);
 }
+
+
+/*Rect2*/
+
+
+Rect2 Rect2::abs() const {
+    Vector2 pos = position;
+    Vector2 sz = size;
+
+    if (sz.x < 0.0f) {
+        pos.x += sz.x;
+        sz.x = -sz.x;
+    }
+    if (sz.y < 0.0f) {
+        pos.y += sz.y;
+        sz.y = -sz.y;
+    }
+
+    return Rect2(pos, sz);
+}
+
+bool Rect2::intersects(const Rect2& p_other) const {
+    if (position.x >= (p_other.position.x + p_other.size.x)) return false;
+    if ((position.x + size.x) <= p_other.position.x) return false;
+    if (position.y >= (p_other.position.y + p_other.size.y)) return false;
+    if ((position.y + size.y) <= p_other.position.y) return false;
+    return true;
+}
+
+bool Rect2::encloses(const Rect2& p_other) const {
+    return (p_other.position.x >= position.x) &&
+           (p_other.position.y >= position.y) &&
+           ((p_other.position.x + p_other.size.x) <= (position.x + size.x)) &&
+           ((p_other.position.y + p_other.size.y) <= (position.y + size.y));
+}
+
+Rect2 Rect2::intersection(const Rect2& p_other) const {
+    Rect2 new_rect = p_other;
+
+    if (!intersects(new_rect)) {
+        return Rect2();
+    }
+
+    new_rect.position.x = Math::max(position.x, p_other.position.x);
+    new_rect.position.y = Math::max(position.y, p_other.position.y);
+
+    Vector2 end = position + size;
+    Vector2 other_end = p_other.position + p_other.size;
+
+    new_rect.size.x = Math::min(end.x, other_end.x) - new_rect.position.x;
+    new_rect.size.y = Math::min(end.y, other_end.y) - new_rect.position.y;
+
+    return new_rect;
+}
+
+Rect2 Rect2::merge(const Rect2& p_other) const {
+    Rect2 new_rect;
+    new_rect.position.x = Math::min(position.x, p_other.position.x);
+    new_rect.position.y = Math::min(position.y, p_other.position.y);
+
+    Vector2 end = position + size;
+    Vector2 other_end = p_other.position + p_other.size;
+
+    new_rect.size.x = Math::max(end.x, other_end.x) - new_rect.position.x;
+    new_rect.size.y = Math::max(end.y, other_end.y) - new_rect.position.y;
+
+    return new_rect;
+}
+
+Rect2 Rect2::expand(const Vector2& p_vector) const {
+    Rect2 r = *this;
+    Vector2 begin = r.position;
+    Vector2 end = r.position + r.size;
+
+    if (p_vector.x < begin.x) begin.x = p_vector.x;
+    if (p_vector.y < begin.y) begin.y = p_vector.y;
+    if (p_vector.x > end.x) end.x = p_vector.x;
+    if (p_vector.y > end.y) end.y = p_vector.y;
+
+    r.position = begin;
+    r.size = end - begin;
+    return r;
+}
+
+Rect2 Rect2::grow(float p_by) const {
+    Rect2 res = *this;
+    res.position.x -= p_by;
+    res.position.y -= p_by;
+    res.size.x += p_by * 2.0f;
+    res.size.y += p_by * 2.0f;
+    return res;
+}

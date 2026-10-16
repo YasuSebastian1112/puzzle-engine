@@ -25,14 +25,14 @@ private:
     RenderingDevice rendering_device;
 
     Type type = Type::Custom;
-    std::string title = "New Window";
+    String title = "New Window";
     Size2i size = Size2i(1280, 720);
     Point2i position = Point2i(100, 100);
     bool vsync = true;
 
 public:
 
-    bool initialize(const std::string& p_title, const Size2i& p_size, const Point2i& p_position = Point2i(100, 100), Type p_type = Type::Custom);
+    bool initialize(const String& p_title, const Size2i& p_size, const Point2i& p_position = Point2i(100, 100), Type p_type = Type::Custom);
     void poll_events();
     void swap_buffers();
     bool should_close() const;
@@ -44,8 +44,8 @@ public:
     void set_type(Type p_type) { type = p_type; }
     Type get_type() const { return type; }
 
-    void set_title(const std::string& p_title);
-    std::string get_title() const { return title; }
+    void set_title(const String& p_title);
+    String get_title() const { return title; }
 
     void set_size(const Size2i& p_size);
     Size2i get_size() const { return size; }

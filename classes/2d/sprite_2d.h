@@ -11,11 +11,11 @@ class Sprite2D : public Node2D {
     CLASS_TYPE(Sprite2D, Node2D)
 
 public:
-    Sprite2D(const std::string& node_name = "Sprite2D");
+    Sprite2D(const String& node_name = "Sprite2D");
     virtual ~Sprite2D() override;
 
     // Carga directa de archivo de imagen
-    bool load_texture_from_file(const std::string& path);
+    bool load_texture_from_file(const String& path);
 
     // Dibuja el sprite si hay textura cargada
     virtual void _draw() override;

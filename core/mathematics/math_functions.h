@@ -66,5 +66,21 @@ public:
     static double snapped(double p_val, double p_step);
     static double wrapf(double p_val, double p_min, double p_max);
     static double remap(double p_val, double p_in_from, double p_in_to, double p_out_from, double p_out_to);
+    
+    
+    template <typename T>
+    static constexpr T min(T a, T b) {
+        return (a < b) ? a : b;
+    }
+
+    template <typename T>
+    static constexpr T max(T a, T b) {
+        return (a > b) ? a : b;
+    }
+
+    template <typename T>
+    static constexpr T clamp(T value, T min_val, T max_val) {
+        return (value < min_val) ? min_val : (value > max_val) ? max_val : value;
+    }
 
 };

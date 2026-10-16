@@ -4,7 +4,7 @@
 // ========================================================================= //
 #include "window.h"
 
-bool Window::initialize(const std::string& p_title, const Size2i& p_size, const Point2i& p_position, Type p_type) {
+bool Window::initialize(const String& p_title, const Size2i& p_size, const Point2i& p_position, Type p_type) {
     title = p_title;
     size = p_size;
     position = p_position;
@@ -35,7 +35,7 @@ void Window::clear(const Color& p_color) {
     rendering_device.clear_buffers(true, true, false);
 }
 
-void Window::set_title(const std::string& p_title) {
+void Window::set_title(const String& p_title) {
     title = p_title;
     rendering_device.set_window_title(title);
 }

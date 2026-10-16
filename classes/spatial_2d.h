@@ -27,7 +27,7 @@ public:
     virtual glm::mat4 get_transform() const = 0; // Obliga a Node2D y Control a definir su matriz
 
 
-    Spatial2D(const std::string& node_name = "Spatial2D") 
+    Spatial2D(const String& node_name = "Spatial2D") 
         : Node(node_name), visible(true), z_index(0), modulate(1.0f, 1.0f, 1.0f, 1.0f) {}
     virtual ~Spatial2D() override = default;
 

@@ -20,7 +20,7 @@ public: \
         return #m_class;  \
     }  \
     \
-    virtual bool is_class(const std::string& name) const override {  \
+    virtual bool is_class(const String& name) const override {  \
         if (name==#m_class) return true;  \
         return m_inherits::is_class(name);  \
     }  \
@@ -36,7 +36,7 @@ public:
 
     uint64_t get_instance_id() const {return instance_id;}
     virtual const char* get_class_name() const {return "Object";}
-    virtual bool is_class(const std::string& name) const {return name == "Object";}
+    virtual bool is_class(const String& name) const {return name == "Object";}
     static const char* get_class_static() { return "Object"; }
 
     Object() : instance_id(++next_id) {}

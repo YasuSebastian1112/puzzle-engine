@@ -8,7 +8,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-Sprite2D::Sprite2D(const std::string& node_name) : Node2D(node_name) {
+Sprite2D::Sprite2D(const String& node_name) : Node2D(node_name) {
     setup_mesh();
 }
 
@@ -54,7 +54,7 @@ void Sprite2D::setup_mesh() {
     glBindVertexArray(0);
 }
 
-bool Sprite2D::load_texture_from_file(const std::string& path) {
+bool Sprite2D::load_texture_from_file(const String& path) {
     if (texture_id != 0) {
         glDeleteTextures(1, &texture_id);
         texture_id = 0;

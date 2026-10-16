@@ -10,6 +10,8 @@
 #include "mathematics/math_2d.h"
 #include "color.h"
 
+using String = std::string;
+
 class Object;
 
 class Variant {
@@ -42,7 +44,7 @@ public:
     Variant(bool v) : type(Type::BOOL), val_bool(v) {}
     Variant(int64_t v) : type(Type::INT), val_int(v) {}
     Variant(double v) : type(Type::FLOAT), val_float(v) {}
-    Variant(const std::string& v) : type(Type::STRING), val_string(v) {}
+    Variant(const String& v) : type(Type::STRING), val_string(v) {}
     
     Variant(const Vector2& v) : type(Type::VECTOR2), val_vector2(v) {}
     Variant(const Vector2i& v) : type(Type::VECTOR2I), val_vector2i(v) {}
@@ -57,7 +59,7 @@ public:
     int64_t as_int() const {return val_int;}
     double as_float() const {return val_float;}
     bool as_bool() const {return val_bool;}
-    std::string as_string() const {return val_string;}
+    String as_string() const {return val_string;}
 
     Vector2 as_vector2() const { return val_vector2; }
     Vector2i as_vector2i() const { return val_vector2i; }
@@ -80,5 +82,5 @@ private:
         Object* val_object;
     };
     
-    std::string val_string;
+    String val_string;
 };
