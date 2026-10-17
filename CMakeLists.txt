@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(glm)
 add_library(glad STATIC external/glad/src/glad.c)
 target_include_directories(glad PUBLIC external/glad/include)
 
+
 # Subdirectorios (aquí se definen módulos y el target PuzzleEngine)
 add_subdirectory(core)
 add_subdirectory(globals)

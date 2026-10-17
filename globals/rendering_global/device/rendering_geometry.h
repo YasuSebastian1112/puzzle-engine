@@ -20,8 +20,17 @@ public:
 
 private:
     RenderingDevice* rendering_device = nullptr;
+
     std::vector<Vertex2D> batched_vertices;
     std::vector<uint32_t> batched_indices;
+
+    // Límite máximo de vértices por lote antes de enviar a GPU (ej. 4096 o 8192)
+    static constexpr size_t MAX_BATCH_VERTICES = 4096;
+
+    // Buffer preasignado en memoria contigua (evita reallocs en el heap)
+    std::vector<Vertex2D> vertex_buffer;
+
+    void add_vertex(const Vertex2D& p_vertex);
 
 public:
     RenderingGeometry() = default;

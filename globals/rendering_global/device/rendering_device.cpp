@@ -3,7 +3,9 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ========================================================================= //
 
+
 #include "rendering_device.h"
+#include "globals/input/input.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -31,6 +33,23 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     native_window = static_cast<WindowHandle>(window);
     glfwSetWindowPos(window, p_pos.x, p_pos.y);
     glfwMakeContextCurrent(window);
+
+    // Callbacks del Sistema de Entrada
+    glfwSetKeyCallback(window, [](GLFWwindow*, int key, int scancode, int action, int mods) {
+        Input::on_key_event(key, action);
+    });
+
+    glfwSetMouseButtonCallback(window, [](GLFWwindow*, int button, int action, int mods) {
+        Input::on_mouse_button_event(button, action);
+    });
+
+    glfwSetCursorPosCallback(window, [](GLFWwindow*, double xpos, double ypos) {
+        Input::on_mouse_moved_event(xpos, ypos);
+    });
+
+    glfwSetScrollCallback(window, [](GLFWwindow*, double xoffset, double yoffset) {
+        Input::on_mouse_scrolled_event(xoffset, yoffset);
+    });
 
     // Inicializar GLAD tras tener el contexto activo
     if (!gladLoadGL()) {

@@ -7,7 +7,32 @@ void RenderingGeometry::begin() {
     clear();
 }
 
+void RenderingGeometry::flush() {
+    if (batched_vertices.empty() || batched_indices.empty() || !rendering_device) {
+        return;
+    }
+
+    rendering_device->render_geometry(
+        batched_vertices.data(),
+        batched_vertices.size() * sizeof(Vertex2D),
+        batched_indices.data(),
+        batched_indices.size()
+    );
+
+    clear();
+}
+
+void RenderingGeometry::clear() {
+    batched_vertices.clear();
+    batched_indices.clear();
+}
+
 void RenderingGeometry::draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width) {
+    // Si el lote actual alcanza 4096 vértices, volcamos a GPU para no disparar la RAM
+    if (batched_vertices.size() >= 4096) {
+        flush();
+    }
+
     Vector2 dir = (p_to - p_from).normalized();
     Vector2 normal = Vector2(-dir.y, dir.x) * (p_width * 0.5f);
 
@@ -27,9 +52,20 @@ void RenderingGeometry::draw_line(const Vector2& p_from, const Vector2& p_to, co
     batched_indices.push_back(base_index + 0);
 }
 
+void RenderingGeometry::draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width) {
+    if (p_points.size() < 2) return;
+
+    for (size_t i = 0; i < p_points.size() - 1; ++i) {
+        draw_line(p_points[i], p_points[i + 1], p_color, p_width);
+    }
+}
 
 void RenderingGeometry::draw_rect(const Rect2& p_rect, const Color& p_color, bool p_filled, float p_width) {
-    Rect2 r = p_rect.abs(); // Asegura coordenadas positivas antes de triangular
+    if (batched_vertices.size() >= 4096) {
+        flush();
+    }
+
+    Rect2 r = p_rect.abs();
 
     Vector2 top_left = r.position;
     Vector2 top_right = r.position + Vector2(r.size.x, 0.0f);
@@ -65,6 +101,10 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
     float step = (MathDefs::PI * 2) / static_cast<float>(p_segments);
 
     if (p_filled) {
+        if (batched_vertices.size() + p_segments + 2 >= 4096) {
+            flush();
+        }
+
         uint32_t center_idx = static_cast<uint32_t>(batched_vertices.size());
         batched_vertices.push_back({ p_center, p_color, Vector2(0.5f, 0.5f) });
 
@@ -90,32 +130,4 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
             draw_line(p1, p2, p_color, 1.0f);
         }
     }
-}
-
-void RenderingGeometry::draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width) {
-    if (p_points.size() < 2) return;
-
-    for (size_t i = 0; i < p_points.size() - 1; ++i) {
-        draw_line(p_points[i], p_points[i + 1], p_color, p_width);
-    }
-}
-
-void RenderingGeometry::flush() {
-    if (batched_vertices.empty() || batched_indices.empty() || !rendering_device) {
-        return;
-    }
-
-    rendering_device->render_geometry(
-        batched_vertices.data(),
-        batched_vertices.size() * sizeof(Vertex2D),
-        batched_indices.data(),
-        batched_indices.size()
-    );
-
-    clear();
-}
-
-void RenderingGeometry::clear() {
-    batched_vertices.clear();
-    batched_indices.clear();
 }

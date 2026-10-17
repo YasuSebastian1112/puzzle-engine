@@ -227,7 +227,11 @@ struct Rect2 {
         return (p_point.x >= position.x && p_point.x < position.x + size.x &&
                 p_point.y >= position.y && p_point.y < position.y + size.y);
     }
-
+    
+    bool contains(const Vector2& p_point) const {
+        return has_point(p_point);
+    }
+    
     bool operator==(const Rect2& p_other) const {
         return position == p_other.position && size == p_other.size;
     }

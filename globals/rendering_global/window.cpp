@@ -13,7 +13,7 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
     if (!rendering_device.create_window(title, size, position)) {
         return false;
     }
-
+    
     set_vsync(vsync);
     return true;
 }

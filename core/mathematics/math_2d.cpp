@@ -3,6 +3,7 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ===============================================
 
+
 #include "math_2d.h"
 
 /*Vector2*/
