@@ -14,5 +14,6 @@ target_include_directories(puzzle_core PUBLIC
 
 
 target_link_libraries(puzzle_core PUBLIC 
+    puzzle_classes
     glm::glm
 )

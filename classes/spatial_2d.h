@@ -1,40 +1,52 @@
-// ========================================================================= //
+// ============================================================================ //
 // Puzzle Engine - 2D/3D Hybrid Game Engine
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
-// ===============================================
+// ============================================================================ //
 
 #pragma once
-#include "node.h"
-#include <glm/glm.hpp>
+
+#include "classes/node.h"
+#include "core/color.h"
+
+// Forward declaration del batcher para no sobrecargar de includes este header
+class RenderingGeometry;
 
 class Spatial2D : public Node {
-    CLASS_TYPE(Spatial2D, Node)
+    CLASS_TYPE(Spatial2D, Node);
 
 public:
+    // -------------------------------------------------------------------------
+    // PROPIEDADES COMUNES DE RENDER 2D
+    // -------------------------------------------------------------------------
+    bool is_visible() const { return visible; }
+    void set_visible(bool p_visible);
+    bool is_visible_in_tree() const;
 
-    // Propiedades comunes de render 2D
-    bool is_visible() const {return visible;}
-    void set_visible(bool p_visible) {visible = p_visible;}
+    int get_z_index() const { return z_index; }
+    void set_z_index(int p_z) { z_index = p_z; }
 
-    int get_z_index() const {return z_index;}
-    void set_z_index(int p_z) {z_index = p_z;}
+    Color get_modulate() const { return modulate; }
+    void set_modulate(const Color& p_color) { modulate = p_color; }
+    Color get_global_modulate() const;
 
-    glm::vec4 get_modulate() const {return modulate;}
-    void set_modulate(const glm::vec4& p_color) {modulate = p_color;}
+    // -------------------------------------------------------------------------
+    // INTERFAZ DE TRANSFORMADA (Ahora puramente 2D afín)
+    // -------------------------------------------------------------------------
+    virtual Transform2D get_transform() const = 0;
+    virtual Transform2D get_global_transform() const;
 
-    // Interfaz de renderizado
-    virtual void _draw() {}
-    virtual glm::mat4 get_transform() const = 0; // Obliga a Node2D y Control a definir su matriz
+    // Ciclo de dibujo
+    virtual void _draw(RenderingGeometry* p_geometry) {}
+    void propagate_draw(RenderingGeometry* p_geometry);
+    void queue_redraw() { redraw_requested = true; }
+    bool is_redraw_requested() const { return redraw_requested; }
 
-
-    Spatial2D(const String& node_name = "Spatial2D") 
-        : Node(node_name), visible(true), z_index(0), modulate(1.0f, 1.0f, 1.0f, 1.0f) {}
+    Spatial2D(const String& node_name = "Spatial2D");
     virtual ~Spatial2D() override = default;
 
 protected:
-
-    bool visible;
-    int z_index;
-    glm::vec4 modulate; // RGBA
-
+    bool visible = true;
+    int z_index = 0;
+    Color modulate = Color(1.0f, 1.0f, 1.0f, 1.0f);
+    bool redraw_requested = true;
 };

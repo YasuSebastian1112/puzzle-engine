@@ -12,6 +12,8 @@ target_include_directories(puzzle_classes PUBLIC
 )
 
 target_link_libraries(puzzle_classes PUBLIC
+    puzzle_globals
+    puzzle_core
     glad
     glm::glm
 )

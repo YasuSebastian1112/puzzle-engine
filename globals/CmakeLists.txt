@@ -8,6 +8,7 @@ target_include_directories(puzzle_globals PUBLIC
 )
 target_link_libraries(puzzle_globals PUBLIC 
     puzzle_core
+    puzzle_classes
     glad
     glfw
     OpenGL::GL

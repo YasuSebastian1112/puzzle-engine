@@ -4,8 +4,11 @@
 // ========================================================================= //
 
 #pragma once
-#include "object.h"
 
+#include "object.h"
+#include <algorithm>
+
+class SceneTree;
 
 class Node : public Object {
     CLASS_TYPE(Node, Object);
@@ -13,6 +16,8 @@ class Node : public Object {
 public:
 
     // Manejan el ciclo de vida al igual que godot
+    SceneTree* get_tree() const;
+    
     virtual void _enter_tree() {}
     virtual void _ready() {}
     virtual void _process(float delta) {}

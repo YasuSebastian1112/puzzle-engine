@@ -20,6 +20,8 @@ public:
         Custom
     };
 
+    using Mode = RenderingDevice::WindowMode;
+    
 private:
 
     RenderingDevice rendering_device;
@@ -29,6 +31,7 @@ private:
     Size2i size = Size2i(1280, 720);
     Point2i position = Point2i(100, 100);
     bool vsync = true;
+
 
 public:
 
@@ -44,19 +47,26 @@ public:
     void set_type(Type p_type) { type = p_type; }
     Type get_type() const { return type; }
 
+    void set_mode(Mode p_mode) { rendering_device.set_window_mode(p_mode); }
+    bool is_maximized() const { return rendering_device.is_window_maximized(); }
+
     void set_title(const String& p_title);
     String get_title() const { return title; }
 
     void set_size(const Size2i& p_size);
-    Size2i get_size() const { return size; }
+    Size2i get_size() const { return rendering_device.get_window_size(); }
+    
 
     void set_position(const Point2i& p_pos);
-    Point2i get_position() const { return position; }
+    Point2i get_position() const { return rendering_device.get_window_position(); }
 
     void set_vsync(bool p_enabled);
     bool is_vsync_enabled() const { return vsync; }
 
+    Size2i get_framebuffer_size() const { return rendering_device.get_framebuffer_size(); }
+
     RenderingDevice& get_rendering_device() { return rendering_device; }
+    const RenderingDevice& get_rendering_device() const { return rendering_device; }
 
     Window();
     virtual ~Window();

@@ -44,3 +44,11 @@ add_subdirectory(platform)
 add_subdirectory(editor)
 add_subdirectory(main)
 
+if (WIN32)
+    # Incrusta libgcc, libstdc++ y el gestor de hilos de C++ dentro del propio .exe
+    target_link_options(PuzzleEngine PRIVATE 
+        -static 
+        -static-libgcc 
+        -static-libstdc++
+    )
+endif()

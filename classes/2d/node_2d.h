@@ -1,27 +1,66 @@
+// ============================================================================ //
+// Puzzle Engine - 2D/3D Hybrid Game Engine
+// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// ============================================================================ //
+
 #pragma once
+
 #include "classes/spatial_2d.h"
-#include <glm/gtc/matrix_transform.hpp>
+#include "core/mathematics/math_2d.h"
+#include "core/mathematics/transform_2d.h"
 
 class Node2D : public Spatial2D {
-    
     CLASS_TYPE(Node2D, Spatial2D);
 
 public:
-    glm::vec2 position = {0.0f, 0.0f};
-    float rotation = 0.0f; // Radianes
-    glm::vec2 scale = {1.0f, 1.0f};
+    
+    // TRANSFORMACIÓN LOCAL (Encapsulada con control de dirty flag)
+    
+    void set_position(const Vector2& p_pos);
+    Vector2 get_position() const { return position; }
 
-    virtual glm::mat4 get_transform() const override {
-        glm::mat4 local = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0.0f));
-        local = glm::rotate(local, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
-        local = glm::scale(local, glm::vec3(scale, 1.0f));
+    void set_rotation(float p_radians);
+    float get_rotation() const { return rotation; }
 
-        if (get_parent() && get_parent()->is_class("Spatial2D")) {
-            return static_cast<Spatial2D*>(get_parent())->get_transform() * local;
-        }
-        return local;
-    }
+    void set_scale(const Vector2& p_scale);
+    Vector2 get_scale() const { return scale; }
 
-    Node2D(const String& node_name = "Node2D") 
-        : Spatial2D(node_name) {}
+    // Métodos de conveniencia para desplazamientos relativos
+    void translate(const Vector2& p_offset);
+    void rotate(float p_radians);
+
+    
+    // MATRICES AFINES (Con caché)
+    
+    virtual Transform2D get_transform() const override;
+
+    
+    // TRANSFORMACIÓN GLOBAL Y CONVERSIÓN DE ESPACIOS
+    
+    Vector2 get_global_position() const;
+    void set_global_position(const Vector2& p_global_pos);
+
+    float get_global_rotation() const;
+    Vector2 get_global_scale() const;
+
+    // Conversión de coordenadas
+    Vector2 to_local(const Vector2& p_global_point) const;
+    Vector2 to_global(const Vector2& p_local_point) const;
+
+    // Apuntar hacia un objetivo en el mundo (por ejemplo, el cursor o un enemigo)
+    void look_at(const Vector2& p_target);
+
+    Node2D(const String& node_name = "Node2D");
+    virtual ~Node2D() override = default;
+
+private:
+    void _update_transform() const;
+
+    Vector2 position = Vector2(0.0f, 0.0f);
+    float rotation = 0.0f; // En radianes
+    Vector2 scale = Vector2(1.0f, 1.0f);
+
+    // Caché mutable para evitar llamadas trigonométricas repetitivas
+    mutable Transform2D local_transform;
+    mutable bool transform_dirty = true;
 };

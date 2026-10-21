@@ -40,6 +40,7 @@ void Window::set_title(const String& p_title) {
     rendering_device.set_window_title(title);
 }
 
+
 void Window::set_size(const Size2i& p_size) {
     size = p_size;
     rendering_device.set_window_size(size);

@@ -10,6 +10,41 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+
+#if defined(_WIN32)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <windows.h>
+
+static WNDPROC g_original_wndproc = nullptr;
+
+static LRESULT CALLBACK CustomSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    GLFWwindow* win = static_cast<GLFWwindow*>(glfwGetCurrentContext());
+    RenderingDevice* device = win ? static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win)) : nullptr;
+
+    switch (uMsg) {
+        case WM_ENTERSIZEMOVE:
+            // El usuario tocó el borde o la barra: activamos el timer
+            SetTimer(hWnd, 1, 16, nullptr);
+            break;
+
+        case WM_TIMER:
+            if (wParam == 1 && device) {
+                device->trigger_frame_update();
+            }
+            return 0;
+
+        case WM_EXITSIZEMOVE:
+            // El usuario soltó el marco: apagamos el timer de inmediato
+            KillTimer(hWnd, 1);
+            break;
+    }
+
+    return CallWindowProc(g_original_wndproc, hWnd, uMsg, wParam, lParam);
+}
+#endif
+
+
 // Creacion de ventanas
 
 bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size, const Point2i& p_pos) {
@@ -18,7 +53,10 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
         return false;
     }
 
-    // Configuración OpenGL
+    current_screen_size = p_size;
+    windowed_size = p_size;
+    windowed_pos = p_pos;
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -33,6 +71,34 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     native_window = static_cast<WindowHandle>(window);
     glfwSetWindowPos(window, p_pos.x, p_pos.y);
     glfwMakeContextCurrent(window);
+
+    // Guardamos la instancia de RenderingDevice en la ventana GLFW para el callback
+    glfwSetWindowUserPointer(window, this);
+
+    // Callback para cuando el usuario maximiza, minimiza o cambia el tamaño
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
+        RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
+        if (device && width > 0 && height > 0) {
+            device->current_screen_size = Size2i(width, height);
+            device->set_viewport(Point2i(0, 0), Size2i(width, height));
+            device->trigger_frame_update();
+        }
+    });
+
+    //  Callback de refresco continuo durante el redimensionamiento modal de Windows
+    glfwSetWindowRefreshCallback(window, [](GLFWwindow* win) {
+        RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
+        if (device) {
+            device->trigger_frame_update();
+        }
+    });
+
+    #if defined(_WIN32)
+    HWND hwnd = glfwGetWin32Window(window);
+    if (hwnd) {
+        g_original_wndproc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)CustomSubclassProc);
+    }
+    #endif
 
     // Callbacks del Sistema de Entrada
     glfwSetKeyCallback(window, [](GLFWwindow*, int key, int scancode, int action, int mods) {
@@ -51,7 +117,6 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
         Input::on_mouse_scrolled_event(xoffset, yoffset);
     });
 
-    // Inicializar GLAD tras tener el contexto activo
     if (!gladLoadGL()) {
         std::cerr << "[RenderingDevice] Error al inicializar GLAD" << std::endl;
         return false;
@@ -65,11 +130,77 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     return true;
 }
 
+Size2i RenderingDevice::get_window_size() const {
+    if (native_window) {
+        int w, h;
+        glfwGetWindowSize(static_cast<GLFWwindow*>(native_window), &w, &h);
+        return Size2i(w, h);
+    }
+    return current_screen_size;
+}
+
+Size2i RenderingDevice::get_framebuffer_size() const {
+    if (native_window) {
+        int w, h;
+        glfwGetFramebufferSize(static_cast<GLFWwindow*>(native_window), &w, &h);
+        return Size2i(w, h);
+    }
+    return current_screen_size;
+}
+
+Point2i RenderingDevice::get_window_position() const {
+    if (native_window) {
+        int x, y;
+        glfwGetWindowPos(static_cast<GLFWwindow*>(native_window), &x, &y);
+        return Point2i(x, y);
+    }
+    return windowed_pos;
+}
+
+bool RenderingDevice::is_window_maximized() const {
+    if (native_window) {
+        return glfwGetWindowAttrib(static_cast<GLFWwindow*>(native_window), GLFW_MAXIMIZED) == GLFW_TRUE;
+    }
+    return false;
+}
+
+void RenderingDevice::set_window_mode(WindowMode p_mode) {
+    if (!native_window) return;
+    GLFWwindow* win = static_cast<GLFWwindow*>(native_window);
+
+    if (p_mode == WindowMode::Fullscreen) {
+        glfwGetWindowPos(win, &windowed_pos.x, &windowed_pos.y);
+        glfwGetWindowSize(win, &windowed_size.width, &windowed_size.height);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* vid = glfwGetVideoMode(monitor);
+        glfwSetWindowMonitor(win, monitor, 0, 0, vid->width, vid->height, vid->refreshRate);
+    } else if (p_mode == WindowMode::Maximized) {
+        if (glfwGetWindowMonitor(win) != nullptr) {
+            glfwSetWindowMonitor(win, nullptr, windowed_pos.x, windowed_pos.y, windowed_size.width, windowed_size.height, 0);
+        }
+        glfwMaximizeWindow(win);
+    } else { // Windowed
+        if (glfwGetWindowMonitor(win) != nullptr) {
+            glfwSetWindowMonitor(win, nullptr, windowed_pos.x, windowed_pos.y, windowed_size.width, windowed_size.height, 0);
+        } else {
+            glfwRestoreWindow(win);
+        }
+    }
+}
+
 void RenderingDevice::destroy_window() {
     if (native_window) {
         glfwDestroyWindow(static_cast<GLFWwindow*>(native_window));
         native_window = nullptr;
         glfwTerminate();
+    }
+}
+
+void RenderingDevice::trigger_frame_update() {
+    if (render_callback) {
+        render_callback();
+        swap_buffers();
     }
 }
 
@@ -233,9 +364,12 @@ void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_by
 
     glUseProgram(geom_shader);
 
-    // Matriz ortográfica 2D (0, 0 en esquina superior izquierda)
-    // Coordenadas de pantalla: X de 0 a 1280, Y de 0 a 720
-    float left = 0.0f, right = 1280.0f, bottom = 720.0f, top = 0.0f;
+    // Matriz ortográfica calculada en tiempo real según el tamaño del framebuffer
+    float left = 0.0f;
+    float right = static_cast<float>(current_screen_size.width);
+    float bottom = static_cast<float>(current_screen_size.height);
+    float top = 0.0f;
+
     float ortho_mat[16] = {
         2.0f / (right - left), 0.0f, 0.0f, 0.0f,
         0.0f, 2.0f / (top - bottom), 0.0f, 0.0f,
@@ -248,20 +382,16 @@ void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_by
 
     glBindVertexArray(geom_vao);
 
-    // Subir datos dinámicos a la GPU
     glBindBuffer(GL_ARRAY_BUFFER, geom_vbo);
     glBufferData(GL_ARRAY_BUFFER, p_vertex_bytes, p_vertices, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, p_index_count * sizeof(uint32_t), p_indices, GL_DYNAMIC_DRAW);
 
-    // Dibujar
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(p_index_count), GL_UNSIGNED_INT, 0);
 
     glBindVertexArray(0);
 }
-
-// Destructor
 
 RenderingDevice::~RenderingDevice() {
     destroy_window();

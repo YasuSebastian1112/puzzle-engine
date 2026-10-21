@@ -10,12 +10,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     puzzle_editor
-    puzzle_classes
     puzzle_globals
+    puzzle_core
+    puzzle_classes
     puzzle_script
     puzzle_modules
     puzzle_platform
-    puzzle_core
     glad
     glfw
     OpenGL::GL

@@ -33,4 +33,57 @@ struct Color {
         a = (p_rgba & 0xFF) / 255.0f;
     }
 
+
+    Color operator*(float scalar) const {
+        return Color(r * scalar, g * scalar, b * scalar, a * scalar);
+    }
+
+    Color& operator*=(float scalar) {
+        r *= scalar;
+        g *= scalar;
+        b *= scalar;
+        a *= scalar;
+        return *this;
+    }
+
+    Color operator/(float scalar) const {
+        float inv = 1.0f / scalar;
+        return Color(r * inv, g * inv, b * inv, a * inv);
+    }
+
+    Color& operator/=(float scalar) {
+        float inv = 1.0f / scalar;
+        r *= inv;
+        g *= inv;
+        b *= inv;
+        a *= inv;
+        return *this;
+    }
+
+    // Modulación de dos colores (tinte/filtro: Color * Color)
+    Color operator*(const Color& o) const {
+        return Color(r * o.r, g * o.g, b * o.b, a * o.a);
+    }
+
+    Color& operator*=(const Color& o) {
+        r *= o.r;
+        g *= o.g;
+        b *= o.b;
+        a *= o.a;
+        return *this;
+    }
+
+    // Suma y resta de colores (adición o sustracción de luz)
+    Color operator+(const Color& o) const {
+        return Color(r + o.r, g + o.g, b + o.b, a + o.a);
+    }
+
+    Color operator-(const Color& o) const {
+        return Color(r - o.r, g - o.g, b - o.b, a - o.a);
+    }
+
 };
+
+inline Color operator*(float scalar, const Color& c) {
+    return c * scalar;
+}

@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "mathematics/math_2d.h"
+#include "mathematics/transform_2d.h"
 #include "color.h"
 
 using String = std::string;
@@ -31,6 +32,9 @@ public:
 
         VECTOR2,
         VECTOR2I,
+        RECT2,
+
+        TRANSFORM2D,
 
         // Otros tipos
 
@@ -48,6 +52,9 @@ public:
     
     Variant(const Vector2& v) : type(Type::VECTOR2), val_vector2(v) {}
     Variant(const Vector2i& v) : type(Type::VECTOR2I), val_vector2i(v) {}
+    Variant(const Rect2 v) : type(Type::RECT2), val_rect2(v) {}
+    Variant(const Transform2D& v) : type(Type::TRANSFORM2D), val_transform2d(v) {}
+
 
     Variant(Object* v) : type(Type::OBJECT), val_object(v) {}
     
@@ -63,7 +70,8 @@ public:
 
     Vector2 as_vector2() const { return val_vector2; }
     Vector2i as_vector2i() const { return val_vector2i; }
-
+    Rect2 as_rect2() const { return val_rect2; }
+    Transform2D as_transform2d() const { return val_transform2d; }  
 
     Object* as_object() const {return val_object;}
 
@@ -78,6 +86,8 @@ private:
 
         Vector2 val_vector2;
         Vector2i val_vector2i;  
+        Rect2 val_rect2;
+        Transform2D val_transform2d;
 
         Object* val_object;
     };
