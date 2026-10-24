@@ -1,7 +1,8 @@
 #include "rendering_geometry.h"
 
 RenderingGeometry::RenderingGeometry(RenderingDevice* p_device)
-    : rendering_device(p_device) {}
+    : rendering_device(p_device) {
+    }
 
 void RenderingGeometry::begin() {
     clear();
@@ -131,3 +132,41 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
         }
     }
 }
+
+
+void RenderingGeometry::draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color, float p_scale) {
+    float cur_x = p_pos.x;
+    float cur_y = p_pos.y;
+
+    for (size_t i = 0; i < p_text.length(); ++i) {
+        char c = p_text[i];
+
+        if (c == '\n') {
+            cur_x = p_pos.x;
+            cur_y += (DefaultFont::GLYPH_HEIGHT + 2) * p_scale;
+            continue;
+        }
+
+        if (c < 32 || c > 126) {
+            c = '?';
+        }
+
+        int glyph_idx = c - DefaultFont::FIRST_CHAR;
+        const uint8_t* glyph = DefaultFont::FONT_8X8[glyph_idx];
+
+        for (int row = 0; row < DefaultFont::GLYPH_HEIGHT; ++row) {
+            uint8_t row_bits = glyph[row];
+            for (int col = 0; col < DefaultFont::GLYPH_WIDTH; ++col) {
+                // El bit más significativo representa el píxel izquierdo
+                if (row_bits & (0x80 >> col)) {
+                    Vector2 pixel_pos(cur_x + col * p_scale, cur_y + row * p_scale);
+                    Vector2 pixel_size(p_scale, p_scale);
+                    draw_rect(Rect2(pixel_pos, pixel_size), p_color, true);
+                }
+            }
+        }
+
+        cur_x += (DefaultFont::GLYPH_WIDTH + 1) * p_scale; // Espaciado entre caracteres
+    }
+}
+

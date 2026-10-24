@@ -9,6 +9,7 @@
 
 #include "core/variant.h"
 #include "rendering_device.h"
+#include "globals/rendering_global/font_bitmap_primitive.h"
 
 class RenderingGeometry {
 public:
@@ -30,7 +31,10 @@ private:
     // Buffer preasignado en memoria contigua (evita reallocs en el heap)
     std::vector<Vertex2D> vertex_buffer;
 
+
     void add_vertex(const Vertex2D& p_vertex);
+
+
 
 public:
     RenderingGeometry() = default;
@@ -46,6 +50,8 @@ public:
     void draw_polygon(const std::vector<Vector2>& p_points, const Color& p_color);
     void draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width = 1.0f);
 
+    void draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color = Color(1.0f, 1.0f, 1.0f, 1.0f), float p_scale = 2.0f);
+
     // Ciclo de batching
     void begin();
     void flush();
@@ -53,4 +59,7 @@ public:
 
     const std::vector<Vertex2D>& get_vertices() const { return batched_vertices; }
     const std::vector<uint32_t>& get_indices() const { return batched_indices; }
+
+
+
 };
