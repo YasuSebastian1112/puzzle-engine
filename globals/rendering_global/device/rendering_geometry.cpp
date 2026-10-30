@@ -28,6 +28,13 @@ void RenderingGeometry::clear() {
     batched_indices.clear();
 }
 
+void RenderingGeometry::add_vertex(const Vertex2D& p_vertex) {
+    if (batched_vertices.size() >= MAX_BATCH_VERTICES) {
+        flush();
+    }
+    batched_vertices.push_back(p_vertex);
+}
+
 void RenderingGeometry::draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width) {
     // Si el lote actual alcanza 4096 vértices, volcamos a GPU para no disparar la RAM
     if (batched_vertices.size() >= 4096) {
@@ -130,6 +137,24 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
 
             draw_line(p1, p2, p_color, 1.0f);
         }
+    }
+}
+
+void RenderingGeometry::draw_polygon(const std::vector<Vector2>& p_points, const Color& p_color) {
+    if (p_points.size() < 3) return;
+
+    uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
+
+    // Añadir todos los vértices del polígono
+    for (const auto& pt : p_points) {
+        add_vertex({ pt, p_color, Vector2(0.0f, 0.0f) });
+    }
+
+    // Triangulación tipo abanico (Triangle Fan)
+    for (size_t i = 1; i < p_points.size() - 1; ++i) {
+        batched_indices.push_back(base_index);
+        batched_indices.push_back(base_index + static_cast<uint32_t>(i));
+        batched_indices.push_back(base_index + static_cast<uint32_t>(i + 1));
     }
 }
 

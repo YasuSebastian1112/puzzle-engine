@@ -5,4 +5,17 @@ target_include_directories(puzzle_platform PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}
 )
+
+if(WIN32)
+    target_sources(puzzle_platform PRIVATE
+        windows/os_windows.cpp
+        windows/os_windows.h
+    )
+    target_link_libraries(puzzle_platform PRIVATE
+        comctl32
+        psapi
+        winmm
+    )
+endif()
+
 target_link_libraries(puzzle_platform PUBLIC puzzle_core glfw)

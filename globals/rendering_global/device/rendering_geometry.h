@@ -43,6 +43,7 @@ public:
 
     void set_rendering_device(RenderingDevice* p_device) { rendering_device = p_device; }
 
+    
     // Primitivas de dibujado
     void draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width = 1.0f);
     void draw_rect(const Rect2& p_rect, const Color& p_color, bool p_filled = true, float p_width = 1.0f);

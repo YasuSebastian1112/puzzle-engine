@@ -3,45 +3,16 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // ========================================================================= //
 
-
 #include "rendering_device.h"
 #include "globals/input/input.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
 
-
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
-#include <windows.h>
-
-static WNDPROC g_original_wndproc = nullptr;
-
-static LRESULT CALLBACK CustomSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    GLFWwindow* win = static_cast<GLFWwindow*>(glfwGetCurrentContext());
-    RenderingDevice* device = win ? static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win)) : nullptr;
-
-    switch (uMsg) {
-        case WM_ENTERSIZEMOVE:
-            // El usuario tocó el borde o la barra: activamos el timer
-            SetTimer(hWnd, 1, 16, nullptr);
-            break;
-
-        case WM_TIMER:
-            if (wParam == 1 && device) {
-                device->trigger_frame_update();
-            }
-            return 0;
-
-        case WM_EXITSIZEMOVE:
-            // El usuario soltó el marco: apagamos el timer de inmediato
-            KillTimer(hWnd, 1);
-            break;
-    }
-
-    return CallWindowProc(g_original_wndproc, hWnd, uMsg, wParam, lParam);
-}
+#include "platform/windows/os_windows.h"
 #endif
 
 
@@ -60,6 +31,8 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(p_size.width, p_size.height, p_title.c_str(), nullptr, nullptr);
     if (!window) {
@@ -96,7 +69,9 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     #if defined(_WIN32)
     HWND hwnd = glfwGetWin32Window(window);
     if (hwnd) {
-        g_original_wndproc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)CustomSubclassProc);
+        OSWindows::install_window_hooks(hwnd, [this]() {
+            trigger_frame_update();
+        });
     }
     #endif
 
@@ -191,15 +166,30 @@ void RenderingDevice::set_window_mode(WindowMode p_mode) {
 
 void RenderingDevice::destroy_window() {
     if (native_window) {
-        glfwDestroyWindow(static_cast<GLFWwindow*>(native_window));
+        GLFWwindow* win = static_cast<GLFWwindow*>(native_window);
+#if defined(_WIN32)
+        HWND hwnd = glfwGetWin32Window(win);
+        OSWindows::remove_window_hooks(hwnd);
+#endif
+        glfwDestroyWindow(win);
         native_window = nullptr;
         glfwTerminate();
     }
 }
 
 void RenderingDevice::trigger_frame_update() {
+    if (native_window) {
+        int fb_w = 0, fb_h = 0;
+        glfwGetFramebufferSize(static_cast<GLFWwindow*>(native_window), &fb_w, &fb_h);
+        if (fb_w > 0 && fb_h > 0) {
+            current_screen_size = Size2i(fb_w, fb_h);
+            set_viewport(Point2i(0, 0), current_screen_size);
+        }
+    }
+
     if (render_callback) {
         render_callback();
+        glFinish(); // Fuerza a la GPU a completar el rasterizado antes del intercambio de buffers
         swap_buffers();
     }
 }
