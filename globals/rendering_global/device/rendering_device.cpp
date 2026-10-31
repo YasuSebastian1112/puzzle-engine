@@ -14,6 +14,7 @@
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include "platform/system_info.h"
 #include "platform/windows/os_windows.h"
 #endif
 
@@ -152,7 +153,20 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
 
     init_geometry_pipeline();
     set_viewport(Point2i(0, 0), p_size);
-    set_blend_enabled(true);
+    set_blend_enabled(true);    
+
+    // Purgar inmediatamente las páginas transitorias de arranque (DLLs, JIT shaders, etc.)
+#if defined(_WIN32)
+    // Forzar a Windows a vaciar la cola de mensajes del hilo actual
+    MSG msg;
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    // Con todos los mensajes de creación y mapeo procesados, purgar la memoria
+    SystemInfo::trim_memory();
+#endif
 
     return true;
 }

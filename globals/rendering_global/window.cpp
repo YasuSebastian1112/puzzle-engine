@@ -12,18 +12,38 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #include <windows.h>
+#include "platform/system_info.h"
 #include "platform/windows/os_windows.h"
+
 
 static WNDPROC g_original_wndproc = nullptr;
 
 static LRESULT CALLBACK custom_borderless_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-    if (msg == WM_NCCALCSIZE) {
-        // Al recibir WM_NCCALCSIZE con TRUE, retornar 0 expande el área de cliente
-        // sobre todo el marco no-cliente, eliminando el borde y la barra blanca superior.
-        if (wparam == TRUE) {
-            return 0;
+    switch (msg) {
+        case WM_NCCALCSIZE: {
+            if (wparam == TRUE) {
+                return 0;
+            }
+            break;
+        }
+
+        // Se envía una vez que el usuario suelta el borde tras redimensionar o mover
+        case WM_EXITSIZEMOVE: {
+            SystemInfo::trim_memory();
+            break;
+        }
+
+        // Se envía al maximizar o restaurar la ventana (ej. Win + Flecha Arriba)
+        case WM_SYSCOMMAND: {
+            LRESULT res = CallWindowProc(g_original_wndproc, hwnd, msg, wparam, lparam);
+            WPARAM cmd = wparam & 0xFFF0;
+            if (cmd == SC_MAXIMIZE || cmd == SC_RESTORE) {
+                SystemInfo::trim_memory();
+            }
+            return res;
         }
     }
+
     return CallWindowProc(g_original_wndproc, hwnd, msg, wparam, lparam);
 }
 #endif
@@ -551,20 +571,24 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
 // -------------------------------------------------------------------------
 
 void Window::run(FrameCallback p_frame_callback) {
+    // Registra el callback de renderizado en el dispositivo gráfico para soportar
+    // repintado continuo durante eventos de arrastre o redimensionado modal en el SO.
     rendering_device.set_render_callback([this, &p_frame_callback]() {
         if (p_frame_callback) {
             p_frame_callback(0.016);
         }
     });
 
-#if defined(_WIN32)
-    OSWindows::trim_memory();
-#endif
-
     double last_time = glfwGetTime();
 
+    // Contador de cuadros iniciales para diferir el vaciado del Working Set
+    uint32_t startup_warmup_frames = 0;
+
     while (!should_close()) {
+        // Procesa la cola de mensajes del sistema operativo (eventos de teclado, mouse y ventana)
         poll_events();
+
+        // Control nativo de interacción (hit-testing, arrastre de ventana y resize de bordes)
         process_window_interaction();
 
         if (m_is_dragging) {
@@ -573,17 +597,33 @@ void Window::run(FrameCallback p_frame_callback) {
             update_resizing();
         }
 
+        // Cálculo del tiempo delta entre cuadros con limitador para evitar saltos temporales bruscos
         double current_time = glfwGetTime();
         double delta = current_time - last_time;
         if (delta > 0.05) delta = 0.016;
         last_time = current_time;
 
+        // Ejecuta la lógica del juego o aplicación y la emisión de comandos de dibujo
         if (p_frame_callback) {
             p_frame_callback(delta);
         }
 
+        // Presenta el fotograma en pantalla intercambiando los búferes de color
         swap_buffers();
+
+#if defined(_WIN32)
+        // Purgar páginas transitorias de arranque (DLLs, JIT de shaders, buffers iniciales de DWM).
+        // Se ejecuta exactamente en el tercer cuadro, una vez que el controlador de GPU
+        // y el Desktop Window Manager consolidaron el swap chain en pantalla.
+        if (startup_warmup_frames <= 3) {
+            startup_warmup_frames++;
+            if (startup_warmup_frames == 3) {
+                OSWindows::trim_memory();
+            }
+        }
+#endif
     }
 
+    // Limpia el puntero del callback para evitar accesos colgantes al cerrar la ventana
     rendering_device.set_render_callback(nullptr);
 }

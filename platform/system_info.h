@@ -67,4 +67,7 @@ public:
     // Utilidades de registro en consola / depuración
     static void print_hardware_summary();
     static void print_performance_snapshot();
+
+    // Fuerza a Windows a purgar páginas no utilizadas del Working Set
+    static void trim_memory();
 };

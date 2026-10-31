@@ -1,17 +1,14 @@
 // ========================================================================= //
-// Sierra Engine - Platform Abstraction (Windows)
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
 // ========================================================================= //
 
 #pragma once
 
-#ifdef _WIN32
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
+#if defined(_WIN32)
 #include <windows.h>
-#include <mmsystem.h>
 #include <functional>
 
 class OSWindows {
@@ -19,13 +16,17 @@ public:
     using FramePumpCallback = std::function<void()>;
 
     static void trim_memory();
-    static void install_window_hooks(HWND p_hwnd, FramePumpCallback p_pump_callback);
-    static void remove_window_hooks(HWND p_hwnd);
     static void initialize_system_timer();
     static void restore_system_timer();
 
-private:
-    static LRESULT CALLBACK subclass_proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-};
+    static void install_window_hooks(HWND p_hwnd, FramePumpCallback p_callback);
+    static void remove_window_hooks(HWND p_hwnd);
 
-#endif // _WIN32
+private:
+    static LRESULT CALLBACK custom_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+
+    static inline WNDPROC s_original_wndproc = nullptr;
+    static inline FramePumpCallback s_frame_callback = nullptr;
+    static inline bool s_initial_trim_done = false;
+};
+#endif

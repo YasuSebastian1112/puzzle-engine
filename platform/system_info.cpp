@@ -240,3 +240,11 @@ void SystemInfo::print_performance_snapshot() {
     std::printf("[PERF] FPS: %6.1f | Frame: %5.2f ms | RAM: %5.2f MB | CPU Proc: %4.1f%%\n",
                 pm.fps, pm.frame_time_ms, pm.memory_used_mb, pm.cpu_process_usage_pct);
 }
+
+void SystemInfo::trim_memory() {
+#if defined(_WIN32)
+    // Pasar -1 (o (SIZE_T)-1) indica al kernel de Windows que vacíe tantas páginas del
+    // working set como sea posible hacia el estado disponible sin penalizar el rendimiento.
+    SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
+#endif
+}
