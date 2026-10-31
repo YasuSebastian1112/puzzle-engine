@@ -1,9 +1,56 @@
+// =============================================================================
+// PUZZLE ENGINE — 2D/3D GAME ENGINE
+// -----------------------------------------------------------------------------
+// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
+// =============================================================================
+
 #include "window.h"
 #include <GLFW/glfw3.h>
 
 #if defined(_WIN32)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <windows.h>
 #include "platform/windows/os_windows.h"
+
+static WNDPROC g_original_wndproc = nullptr;
+
+static LRESULT CALLBACK custom_borderless_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    if (msg == WM_NCCALCSIZE) {
+        // Al recibir WM_NCCALCSIZE con TRUE, retornar 0 expande el área de cliente
+        // sobre todo el marco no-cliente, eliminando el borde y la barra blanca superior.
+        if (wparam == TRUE) {
+            return 0;
+        }
+    }
+    return CallWindowProc(g_original_wndproc, hwnd, msg, wparam, lparam);
+}
 #endif
+
+void Window::enable_native_windows_snap(void* p_native_window_handle) {
+#if defined(_WIN32)
+    HWND hwnd = static_cast<HWND>(p_native_window_handle);
+    if (!hwnd) return;
+
+    // Estilos requeridos para que DWM registre Snap Assist (Win + Flechas) y animaciones
+    LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+    style |= (WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP);
+    style &= ~WS_CAPTION;
+    SetWindowLongPtr(hwnd, GWL_STYLE, style);
+
+    //Subclasificar la ventana de GLFW para interceptar WM_NCCALCSIZE
+    if (!g_original_wndproc) {
+        g_original_wndproc = reinterpret_cast<WNDPROC>(
+            SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(custom_borderless_wndproc))
+        );
+    }
+
+    // Forzar el recálculo total del marco
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+#endif
+}
 
 Window::Window() {}
 
@@ -38,12 +85,16 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
         m_cursor_vresize = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
         m_cursor_nesw    = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
         m_cursor_nwse    = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+
+#if defined(_WIN32)
+        HWND hwnd = glfwGetWin32Window(win);
+        enable_native_windows_snap(hwnd);
+#endif
     }
 
-    #if defined(_WIN32)
+#if defined(_WIN32)
     OSWindows::trim_memory();
-    #endif
-    
+#endif
 
     return true;
 }
@@ -98,61 +149,101 @@ Size2i Window::get_size() const {
     return rendering_device.get_window_size();
 }
 
-void Window::minimize() {
+// -------------------------------------------------------------------------
+// GESTIÓN DE MODOS DE VENTANA (ESTILO GODOT)
+// -------------------------------------------------------------------------
+
+void Window::set_mode(Mode p_mode) {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (win) {
-        glfwIconifyWindow(win);
-    }
-}
+    if (!win) return;
 
-void Window::maximize() {
-    GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (!win || m_is_maximized) return;
+    if (current_mode == p_mode) return;
 
-    glfwGetWindowPos(win, &m_saved_windowed_pos.x, &m_saved_windowed_pos.y);
-    glfwGetWindowSize(win, &m_saved_windowed_size.width, &m_saved_windowed_size.height);
-
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    if (monitor) {
-        int mx, my, mw, mh;
-        glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
-        glfwSetWindowPos(win, mx, my);
-        glfwSetWindowSize(win, mw, mh);
+    // Resguardar posición de ventana previa al cambio a modos de pantalla completa o maximizado
+    if (current_mode == Mode::Windowed) {
+        glfwGetWindowPos(win, &m_saved_windowed_pos.x, &m_saved_windowed_pos.y);
+        glfwGetWindowSize(win, &m_saved_windowed_size.width, &m_saved_windowed_size.height);
     }
 
-    m_is_maximized = true;
+    current_mode = p_mode;
+
+    switch (p_mode) {
+        case Mode::Windowed: {
+            glfwSetWindowMonitor(win, nullptr, m_saved_windowed_pos.x, m_saved_windowed_pos.y,
+                                 m_saved_windowed_size.width, m_saved_windowed_size.height, 0);
+            break;
+        }
+        case Mode::Minimized: {
+            glfwIconifyWindow(win);
+            break;
+        }
+        case Mode::Maximized: {
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            if (monitor) {
+                int mx, my, mw, mh;
+                glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
+                glfwSetWindowMonitor(win, nullptr, mx, my, mw, mh, 0);
+            }
+            break;
+        }
+        case Mode::Fullscreen: {
+            // Pantalla completa sin bordes (Borderless)
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            if (monitor) {
+                const GLFWvidmode* vm = glfwGetVideoMode(monitor);
+                if (vm) {
+                    glfwSetWindowMonitor(win, nullptr, 0, 0, vm->width, vm->height, 0);
+                }
+            }
+            break;
+        }
+        case Mode::ExclusiveFullscreen: {
+            // Pantalla completa exclusiva directa al monitor
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            if (monitor) {
+                const GLFWvidmode* vm = glfwGetVideoMode(monitor);
+                if (vm) {
+                    glfwSetWindowMonitor(win, monitor, 0, 0, vm->width, vm->height, vm->refreshRate);
+                }
+            }
+            break;
+        }
+    }
+
     rendering_device.trigger_frame_update();
-}
 
-void Window::restore() {
-    GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (!win || !m_is_maximized) return;
-
-    glfwSetWindowPos(win, m_saved_windowed_pos.x, m_saved_windowed_pos.y);
-    glfwSetWindowSize(win, m_saved_windowed_size.width, m_saved_windowed_size.height);
-
-    m_is_maximized = false;
-    rendering_device.trigger_frame_update();
-}
-
-void Window::toggle_maximize() {
-    if (m_is_maximized) {
-        restore();
-    } else {
-        maximize();
-    }
 #if defined(_WIN32)
     OSWindows::trim_memory();
 #endif
 }
 
-// ------------------------------------------------------------------------- //
-// Arrastre con coordenadas absolutas de pantalla
-// ------------------------------------------------------------------------- //
+void Window::minimize() {
+    set_mode(Mode::Minimized);
+}
+
+void Window::maximize() {
+    set_mode(Mode::Maximized);
+}
+
+void Window::restore() {
+    set_mode(Mode::Windowed);
+}
+
+void Window::toggle_maximize() {
+    if (current_mode == Mode::Maximized) {
+        restore();
+    } else {
+        maximize();
+    }
+}
+
+// -------------------------------------------------------------------------
+// ARRASTRE DE VENTANA
+// -------------------------------------------------------------------------
 
 void Window::start_dragging() {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (!win || m_is_maximized) return;
+    if (!win || current_mode != Mode::Windowed) return;
 
     m_is_dragging = true;
     double cx, cy;
@@ -192,12 +283,12 @@ void Window::stop_dragging() {
     }
 }
 
-// ------------------------------------------------------------------------- //
-// Redimensionamiento con coordenadas absolutas
-// ------------------------------------------------------------------------- //
+// -------------------------------------------------------------------------
+// REDIMENSIONAMIENTO DE BORDES
+// -------------------------------------------------------------------------
 
 Window::ResizeDirection Window::hit_test_resize_borders(const Point2i& p_cursor_pos, int p_border_thickness) const {
-    if (m_is_maximized) return ResizeDirection::None;
+    if (current_mode != Mode::Windowed) return ResizeDirection::None;
 
     Size2i sz = get_size();
     int dir = static_cast<int>(ResizeDirection::None);
@@ -235,7 +326,7 @@ void Window::update_cursor_icon(ResizeDirection p_dir) {
 }
 
 void Window::start_resizing(ResizeDirection p_dir) {
-    if (p_dir == ResizeDirection::None || m_is_maximized) return;
+    if (p_dir == ResizeDirection::None || current_mode != Mode::Windowed) return;
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (!win) return;
 
@@ -320,9 +411,9 @@ void Window::stop_resizing() {
     }
 }
 
-// ------------------------------------------------------------------------- //
-// Interacción autónoma de ventana
-// ------------------------------------------------------------------------- //
+// -------------------------------------------------------------------------
+// INTERACCIÓN Y HIT-TESTING DE CONTROL
+// -------------------------------------------------------------------------
 
 void Window::process_window_interaction() {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
@@ -336,7 +427,10 @@ void Window::process_window_interaction() {
     glfwGetCursorPos(win, &mx, &my);
     Point2i cursor_pos(static_cast<int>(mx), static_cast<int>(my));
 
+    static int prev_mouse_left = GLFW_RELEASE;
     int mouse_left = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_LEFT);
+    bool just_pressed = (mouse_left == GLFW_PRESS && prev_mouse_left == GLFW_RELEASE);
+    prev_mouse_left = mouse_left;
 
     Rect2 rect_close(static_cast<float>(win_sz.width) - BTN_WIDTH, 0.0f, BTN_WIDTH, TITLE_BAR_HEIGHT);
     Rect2 rect_max(static_cast<float>(win_sz.width) - (BTN_WIDTH * 2.0f), 0.0f, BTN_WIDTH, TITLE_BAR_HEIGHT);
@@ -346,7 +440,7 @@ void Window::process_window_interaction() {
     bool hover_max   = (mx >= rect_max.position.x && mx <= rect_max.position.x + rect_max.size.width && my >= 0 && my <= TITLE_BAR_HEIGHT);
     bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= TITLE_BAR_HEIGHT);
 
-    // Actualización del cursor
+    // Actualización de forma del cursor según cercanía a bordes
     if (m_resize_direction == ResizeDirection::None && !m_is_dragging) {
         if (my > TITLE_BAR_HEIGHT) {
             auto hit_dir = hit_test_resize_borders(cursor_pos, 8);
@@ -356,8 +450,8 @@ void Window::process_window_interaction() {
         }
     }
 
-    // Procesamiento de clics
-    if (mouse_left == GLFW_PRESS) {
+    // Procesamiento de clics y doble clic
+    if (just_pressed) {
         if (!m_is_dragging && m_resize_direction == ResizeDirection::None) {
             if (hover_close) {
                 close();
@@ -366,7 +460,17 @@ void Window::process_window_interaction() {
             } else if (hover_min) {
                 minimize();
             } else if (my <= TITLE_BAR_HEIGHT) {
-                start_dragging();
+                double current_time = glfwGetTime();
+                double click_interval = current_time - m_last_titlebar_click_time;
+
+                // Doble clic sobre la barra de título para alternar maximizado
+                if (click_interval <= 0.28) {
+                    toggle_maximize();
+                    m_last_titlebar_click_time = 0.0;
+                } else {
+                    m_last_titlebar_click_time = current_time;
+                    start_dragging();
+                }
             } else {
                 auto dir = hit_test_resize_borders(cursor_pos, 8);
                 if (dir != ResizeDirection::None) {
@@ -374,7 +478,7 @@ void Window::process_window_interaction() {
                 }
             }
         }
-    } else {
+    } else if (mouse_left == GLFW_RELEASE) {
         stop_dragging();
         stop_resizing();
     }
@@ -401,15 +505,15 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     bool hover_max   = (mx >= rect_max.position.x && mx <= rect_max.position.x + rect_max.size.width && my >= 0 && my <= BTN_HEIGHT);
     bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= BTN_HEIGHT);
 
-    // Fondo
+    // Fondo de la barra
     p_geometry.draw_rect(Rect2(0, 0, static_cast<float>(win_sz.width), TITLE_BAR_HEIGHT), Color(0.10f, 0.10f, 0.13f, 1.0f), true);
 
-    // Título de la ventana
+    // Texto del título
     float text_x = 12.0f;
     float text_y = (TITLE_BAR_HEIGHT - 8.0f) * 0.5f;
     p_geometry.draw_text(Vector2(text_x, text_y), title, Color(0.85f, 0.85f, 0.90f, 1.0f), 1.0f);
 
-    // Botones con efecto hover
+    // Botones con respuesta a selección del puntero
     Color bg_close = hover_close ? Color(0.88f, 0.18f, 0.18f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
     Color bg_max   = hover_max   ? Color(0.25f, 0.25f, 0.32f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
     Color bg_min   = hover_min   ? Color(0.25f, 0.25f, 0.32f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
@@ -418,34 +522,33 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     p_geometry.draw_rect(rect_max, bg_max, true);
     p_geometry.draw_rect(rect_min, bg_min, true);
 
-    // Iconos vectoriales
     Color icon_color(0.85f, 0.85f, 0.88f, 1.0f);
 
-    // Minimizar (-)
+    // Icono Minimizar (-)
     float min_cx = rect_min.position.x + (BTN_WIDTH * 0.5f);
     float min_cy = TITLE_BAR_HEIGHT * 0.5f;
     p_geometry.draw_line(Vector2(min_cx - 4.5f, min_cy), Vector2(min_cx + 4.5f, min_cy), icon_color, 1.2f);
 
-    // Maximizar / Restaurar
+    // Icono Maximizar / Restaurar
     float max_cx = rect_max.position.x + (BTN_WIDTH * 0.5f);
     float max_cy = TITLE_BAR_HEIGHT * 0.5f;
-    if (!m_is_maximized) {
+    if (current_mode != Mode::Maximized) {
         p_geometry.draw_rect(Rect2(max_cx - 4.5f, max_cy - 4.5f, 9.0f, 9.0f), icon_color, false);
     } else {
         p_geometry.draw_rect(Rect2(max_cx - 2.5f, max_cy - 5.5f, 7.0f, 7.0f), icon_color, false);
         p_geometry.draw_rect(Rect2(max_cx - 5.5f, max_cy - 2.5f, 7.0f, 7.0f), icon_color, false);
     }
 
-    // Cerrar (X)
+    // Icono Cerrar (X)
     float close_cx = rect_close.position.x + (BTN_WIDTH * 0.5f);
     float close_cy = TITLE_BAR_HEIGHT * 0.5f;
     p_geometry.draw_line(Vector2(close_cx - 4.0f, close_cy - 4.0f), Vector2(close_cx + 4.0f, close_cy + 4.0f), icon_color, 1.2f);
     p_geometry.draw_line(Vector2(close_cx + 4.0f, close_cy - 4.0f), Vector2(close_cx - 4.0f, close_cy + 4.0f), icon_color, 1.2f);
 }
 
-// ------------------------------------------------------------------------- //
-// Bucle persistente
-// ------------------------------------------------------------------------- //
+// -------------------------------------------------------------------------
+// BUCLE DE EVENTOS Y DISPATCH
+// -------------------------------------------------------------------------
 
 void Window::run(FrameCallback p_frame_callback) {
     rendering_device.set_render_callback([this, &p_frame_callback]() {
@@ -454,9 +557,9 @@ void Window::run(FrameCallback p_frame_callback) {
         }
     });
 
-    #if defined(_WIN32)
+#if defined(_WIN32)
     OSWindows::trim_memory();
-    #endif
+#endif
 
     double last_time = glfwGetTime();
 

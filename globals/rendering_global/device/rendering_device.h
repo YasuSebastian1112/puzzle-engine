@@ -11,8 +11,8 @@ using WindowHandle = void*;
 
 class RenderingDevice {
 public:
-
     using FrameRenderCallback = std::function<void()>;
+
 private:
     WindowHandle native_window = nullptr;
 
@@ -20,6 +20,11 @@ private:
     uint32_t geom_vbo = 0;
     uint32_t geom_ebo = 0;
     uint32_t geom_shader = 0;
+    int32_t geom_proj_loc = -1;
+
+    // Capacidades de búfer para el pipeline geométrico
+    size_t current_max_vertex_bytes = 1024 * 1024 * 2; // 2 MB iniciales
+    size_t current_max_index_bytes  = 1024 * 512;      // 512 KB iniciales
 
     // Dimensiones actuales del buffer para la proyección ortográfica
     Size2i current_screen_size = Size2i(1280, 720);
@@ -30,9 +35,6 @@ private:
     FrameRenderCallback render_callback = nullptr;
 
 public:
-    // Enum de modos de visualización
-    
-
     enum class WindowMode {
         Windowed,
         Maximized,
@@ -61,9 +63,8 @@ public:
     void set_window_mode(WindowMode p_mode);
     bool is_window_maximized() const;
 
-
     void set_render_callback(FrameRenderCallback p_callback) { render_callback = p_callback; }
-    void trigger_frame_update(); // Método interno para invocar el frame desde callbacks/timers
+    void trigger_frame_update();
 
     // Traducción de transformaciones y viewport
     void set_viewport(const Point2i& p_position, const Size2i& p_size);

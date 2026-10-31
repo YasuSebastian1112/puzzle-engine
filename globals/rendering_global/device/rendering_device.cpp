@@ -15,9 +15,6 @@
 #include "platform/windows/os_windows.h"
 #endif
 
-
-// Creacion de ventanas
-
 bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size, const Point2i& p_pos) {
     if (!glfwInit()) {
         std::cerr << "[RenderingDevice] Error al inicializar GLFW" << std::endl;
@@ -31,7 +28,6 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(p_size.width, p_size.height, p_title.c_str(), nullptr, nullptr);
@@ -45,10 +41,8 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     glfwSetWindowPos(window, p_pos.x, p_pos.y);
     glfwMakeContextCurrent(window);
 
-    // Guardamos la instancia de RenderingDevice en la ventana GLFW para el callback
     glfwSetWindowUserPointer(window, this);
 
-    // Callback para cuando el usuario maximiza, minimiza o cambia el tamaño
     glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
         RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
         if (device && width > 0 && height > 0) {
@@ -58,7 +52,6 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
         }
     });
 
-    //  Callback de refresco continuo durante el redimensionamiento modal de Windows
     glfwSetWindowRefreshCallback(window, [](GLFWwindow* win) {
         RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
         if (device) {
@@ -75,7 +68,6 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     }
     #endif
 
-    // Callbacks del Sistema de Entrada
     glfwSetKeyCallback(window, [](GLFWwindow*, int key, int scancode, int action, int mods) {
         Input::on_key_event(key, action);
     });
@@ -155,7 +147,7 @@ void RenderingDevice::set_window_mode(WindowMode p_mode) {
             glfwSetWindowMonitor(win, nullptr, windowed_pos.x, windowed_pos.y, windowed_size.width, windowed_size.height, 0);
         }
         glfwMaximizeWindow(win);
-    } else { // Windowed
+    } else {
         if (glfwGetWindowMonitor(win) != nullptr) {
             glfwSetWindowMonitor(win, nullptr, windowed_pos.x, windowed_pos.y, windowed_size.width, windowed_size.height, 0);
         } else {
@@ -171,6 +163,11 @@ void RenderingDevice::destroy_window() {
         HWND hwnd = glfwGetWin32Window(win);
         OSWindows::remove_window_hooks(hwnd);
 #endif
+        if (geom_vao) { glDeleteVertexArrays(1, &geom_vao); geom_vao = 0; }
+        if (geom_vbo) { glDeleteBuffers(1, &geom_vbo); geom_vbo = 0; }
+        if (geom_ebo) { glDeleteBuffers(1, &geom_ebo); geom_ebo = 0; }
+        if (geom_shader) { glDeleteProgram(geom_shader); geom_shader = 0; }
+
         glfwDestroyWindow(win);
         native_window = nullptr;
         glfwTerminate();
@@ -189,7 +186,7 @@ void RenderingDevice::trigger_frame_update() {
 
     if (render_callback) {
         render_callback();
-        glFinish(); // Fuerza a la GPU a completar el rasterizado antes del intercambio de buffers
+        glFinish();
         swap_buffers();
     }
 }
@@ -207,8 +204,6 @@ void RenderingDevice::swap_buffers() {
 bool RenderingDevice::window_should_close() const {
     return native_window ? glfwWindowShouldClose(static_cast<GLFWwindow*>(native_window)) : true;
 }
-
-// Control de ventana desde el backend gráfico
 
 void RenderingDevice::set_window_size(const Size2i& p_size) {
     if (native_window) {
@@ -231,8 +226,6 @@ void RenderingDevice::set_window_title(const String& p_title) {
 void RenderingDevice::set_vsync(bool p_enabled) {
     glfwSwapInterval(p_enabled ? 1 : 0);
 }
-
-// Traducción de transformaciones y viewport
 
 void RenderingDevice::set_viewport(const Point2i& p_position, const Size2i& p_size) {
     glViewport(
@@ -278,9 +271,7 @@ void RenderingDevice::set_blend_enabled(bool p_enabled) {
     }
 }
 
-// Formas
-
-// En rendering_device.cpp
+// Pipeline de geometría 2D
 
 static const char* vertex_shader_src = R"(
 #version 330 core
@@ -309,7 +300,6 @@ void main() {
 )";
 
 void RenderingDevice::init_geometry_pipeline() {
-    // 1. Compilar shaders
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vertex_shader_src, nullptr);
     glCompileShader(vs);
@@ -325,14 +315,20 @@ void RenderingDevice::init_geometry_pipeline() {
     glDeleteShader(vs);
     glDeleteShader(fs);
 
-    // 2. Crear VAO, VBO y EBO dinámicos
+    geom_proj_loc = glGetUniformLocation(geom_shader, "u_projection");
+
     glGenVertexArrays(1, &geom_vao);
     glGenBuffers(1, &geom_vbo);
     glGenBuffers(1, &geom_ebo);
 
     glBindVertexArray(geom_vao);
+
+    // Búferes preasignados sin datos para no pedir memoria continua al driver
     glBindBuffer(GL_ARRAY_BUFFER, geom_vbo);
+    glBufferData(GL_ARRAY_BUFFER, current_max_vertex_bytes, nullptr, GL_DYNAMIC_DRAW);
+
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, current_max_index_bytes, nullptr, GL_DYNAMIC_DRAW);
 
     // Layout: Position (Vector2 = 2 floats)
     glEnableVertexAttribArray(0);
@@ -352,9 +348,10 @@ void RenderingDevice::init_geometry_pipeline() {
 void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_bytes, const uint32_t* p_indices, size_t p_index_count) {
     if (!p_vertices || p_index_count == 0) return;
 
+    size_t index_bytes = p_index_count * sizeof(uint32_t);
+
     glUseProgram(geom_shader);
 
-    // Matriz ortográfica calculada en tiempo real según el tamaño del framebuffer
     float left = 0.0f;
     float right = static_cast<float>(current_screen_size.width);
     float bottom = static_cast<float>(current_screen_size.height);
@@ -367,16 +364,26 @@ void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_by
         -(right + left) / (right - left), -(top + bottom) / (top - bottom), 0.0f, 1.0f
     };
 
-    GLint proj_loc = glGetUniformLocation(geom_shader, "u_projection");
-    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, ortho_mat);
+    if (geom_proj_loc != -1) {
+        glUniformMatrix4fv(geom_proj_loc, 1, GL_FALSE, ortho_mat);
+    }
 
     glBindVertexArray(geom_vao);
 
+    // Subida sin fugas: glBufferSubData reutiliza la memoria existente
     glBindBuffer(GL_ARRAY_BUFFER, geom_vbo);
-    glBufferData(GL_ARRAY_BUFFER, p_vertex_bytes, p_vertices, GL_DYNAMIC_DRAW);
+    if (p_vertex_bytes > current_max_vertex_bytes) {
+        current_max_vertex_bytes = p_vertex_bytes * 2;
+        glBufferData(GL_ARRAY_BUFFER, current_max_vertex_bytes, nullptr, GL_DYNAMIC_DRAW);
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, p_vertex_bytes, p_vertices);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, p_index_count * sizeof(uint32_t), p_indices, GL_DYNAMIC_DRAW);
+    if (index_bytes > current_max_index_bytes) {
+        current_max_index_bytes = index_bytes * 2;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, current_max_index_bytes, nullptr, GL_DYNAMIC_DRAW);
+    }
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, index_bytes, p_indices);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(p_index_count), GL_UNSIGNED_INT, 0);
 
