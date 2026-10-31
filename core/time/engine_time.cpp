@@ -6,10 +6,12 @@
 // =============================================================================
 
 #include "core/time/engine_time.h"
+#include <thread>
 
 void Time::init() {
     start_time = std::chrono::high_resolution_clock::now();
     prev_time = start_time;
+    frame_start_time = start_time;
     delta = 0.0f;
     time_scale = 1.0f;
     total_time = 0.0;
@@ -42,9 +44,26 @@ void Time::update() {
         fps_counter = 0;
         fps_timer -= 1.0f;
     }
+
+    frame_start_time = std::chrono::high_resolution_clock::now();
 }
 
 uint64_t Time::get_ticks_msec() {
     auto now = std::chrono::high_resolution_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+}
+
+void Time::delay_to_target_fps() {
+    if (target_fps == 0) return;
+
+    const double target_frame_time = 1.0 / static_cast<double>(target_fps);
+
+    auto current_now = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> frame_work = current_now - frame_start_time;
+    double sleep_seconds = target_frame_time - frame_work.count();
+
+    // Si aún sobra tiempo antes de que empiece el siguiente fotograma, liberamos la CPU
+    if (sleep_seconds > 0.001) {
+        std::this_thread::sleep_for(std::chrono::duration<double>(sleep_seconds));
+    }
 }

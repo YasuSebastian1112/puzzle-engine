@@ -31,10 +31,18 @@ public:
     static uint32_t get_fps() { return current_fps; }
     static uint64_t get_frame_count() { return frame_count; }
 
+    // Control de límite de fotogramas
+    static void set_target_fps(uint32_t p_fps) { target_fps = p_fps; }
+    static uint32_t get_target_fps() { return target_fps; }
+    static void delay_to_target_fps();
+
 private:
     static inline std::chrono::high_resolution_clock::time_point start_time;
     static inline std::chrono::high_resolution_clock::time_point prev_time;
     
+    static inline uint32_t target_fps = 60; // 0 = sin límite de FPS
+    static inline std::chrono::high_resolution_clock::time_point frame_start_time;
+
     static inline float delta = 0.0f;
     static inline float time_scale = 1.0f;
     static inline double total_time = 0.0;

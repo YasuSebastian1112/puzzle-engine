@@ -10,6 +10,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <functional>
+#include <cstdint>
 
 class OSWindows {
 public:
@@ -21,6 +22,10 @@ public:
 
     static void install_window_hooks(HWND p_hwnd, FramePumpCallback p_callback);
     static void remove_window_hooks(HWND p_hwnd);
+
+    static void initialize();
+    static void cleanup();
+    static void sleep_precise(uint32_t p_ms);
 
 private:
     static LRESULT CALLBACK custom_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);

@@ -11,18 +11,34 @@
 #include <timeapi.h>
 #include <psapi.h>
 
+void OSWindows::initialize() {
+    // Eleva la resolución del timer del sistema de ~15.6 ms a 1 ms
+    timeBeginPeriod(1);
+}
+
+void OSWindows::cleanup() {
+    // Restaura la resolución estándar del temporizador al salir
+    timeEndPeriod(1);
+}
+
+void OSWindows::restore_system_timer() {
+    timeEndPeriod(1);
+}
+
 void OSWindows::trim_memory() {
     HANDLE process = GetCurrentProcess();
     EmptyWorkingSet(process);
     SetProcessWorkingSetSize(process, static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
 }
 
-void OSWindows::initialize_system_timer() {
-    timeBeginPeriod(1);
+void OSWindows::sleep_precise(uint32_t p_ms) {
+    if (p_ms > 0) {
+        Sleep(static_cast<DWORD>(p_ms));
+    }
 }
 
-void OSWindows::restore_system_timer() {
-    timeEndPeriod(1);
+void OSWindows::initialize_system_timer() {
+    timeBeginPeriod(1);
 }
 
 LRESULT CALLBACK OSWindows::custom_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {

@@ -14,6 +14,7 @@
 #include <windows.h>
 #include "platform/system_info.h"
 #include "platform/windows/os_windows.h"
+#include "core/time/engine_time.h"
 #include "licenses_generated/logo.h"
 
 static WNDPROC g_original_wndproc = nullptr;
@@ -624,32 +625,39 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
 // -------------------------------------------------------------------------
 
 void Window::run(FrameCallback p_frame_callback) {
+#if defined(_WIN32)
+    // Fija la granularidad del planificador de Windows a 1 ms
+    OSWindows::initialize_system_timer();
+#endif
+
+    // Inicializar el reloj del motor
+    Time::init();
+
     // Registra el callback de renderizado en el dispositivo gráfico para soportar
-    // repintado continuo durante eventos de arrastre o redimensionado modal en el SO.
+    // repintado continuo durante eventos modales del SO (arrastre/redimensionado)
     rendering_device.set_render_callback([this, &p_frame_callback]() {
         clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
         m_geometry.begin();
-
-        // Dibuja la barra de título automáticamente en cada redibujado de la ventana
         draw_title_bar(m_geometry);
 
         if (p_frame_callback) {
-            p_frame_callback(0.016);
+            p_frame_callback(Time::get_process_delta());
         }
 
         m_geometry.flush();
     });
 
-    double last_time = glfwGetTime();
-
     // Contador de cuadros iniciales para diferir el vaciado del Working Set
     uint32_t startup_warmup_frames = 0;
 
     while (!should_close()) {
-        // Procesa la cola de mensajes del sistema operativo (eventos de teclado, mouse y ventana)
+        // Actualiza el paso de tiempo global del motor
+        Time::update();
+
+        // Procesa la cola de mensajes del sistema operativo (teclado, ratón, ventana)
         poll_events();
 
-        // Control nativo de interacción (hit-testing, arrastre de ventana y resize de bordes)
+        // Control nativo de interacción (hit-testing, arrastre y redimensionado)
         process_window_interaction();
 
         if (m_is_dragging) {
@@ -658,12 +666,6 @@ void Window::run(FrameCallback p_frame_callback) {
             update_resizing();
         }
 
-        // Cálculo del tiempo delta entre cuadros con limitador para evitar saltos temporales bruscos
-        double current_time = glfwGetTime();
-        double delta = current_time - last_time;
-        if (delta > 0.05) delta = 0.016;
-        last_time = current_time;
-
         // Limpieza y emisión de geometrías de la ventana
         clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
         m_geometry.begin();
@@ -671,9 +673,9 @@ void Window::run(FrameCallback p_frame_callback) {
         // Barra de título del motor encapsulada (fondo, icono, título y botones)
         draw_title_bar(m_geometry);
 
-        // Ejecuta la lógica del juego o aplicación y la emisión de comandos de dibujo
+        // Ejecuta la lógica del juego o aplicación pasando el delta de Time
         if (p_frame_callback) {
-            p_frame_callback(delta);
+            p_frame_callback(Time::get_process_delta());
         }
 
         m_geometry.flush();
@@ -682,9 +684,7 @@ void Window::run(FrameCallback p_frame_callback) {
         swap_buffers();
 
 #if defined(_WIN32)
-        // Purgar páginas transitorias de arranque (DLLs, JIT de shaders, buffers iniciales de DWM).
-        // Se ejecuta exactamente en el tercer cuadro, una vez que el controlador de GPU
-        // y el Desktop Window Manager consolidaron el swap chain en pantalla.
+        // Purgar páginas transitorias de arranque (DLLs, JIT de shaders, buffers de DWM)
         if (startup_warmup_frames <= 3) {
             startup_warmup_frames++;
             if (startup_warmup_frames == 3) {
@@ -692,8 +692,16 @@ void Window::run(FrameCallback p_frame_callback) {
             }
         }
 #endif
+
+        // Duerme el hilo el tiempo restante del frame para clavar los FPS objetivo
+        Time::delay_to_target_fps();
     }
 
-    // Limpia el puntero del callback para evitar accesos colgantes al cerrar la ventana
+    // Limpia el puntero del callback para evitar accesos colgantes al cerrar
     rendering_device.set_render_callback(nullptr);
+
+#if defined(_WIN32)
+    // Restaura la resolución estándar del temporizador del kernel
+    OSWindows::restore_system_timer();
+#endif
 }
