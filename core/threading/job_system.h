@@ -1,6 +1,8 @@
 // ========================================================================= //
-// Puzzle Engine - 2D/3D Hybrid Game Engine
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
 // ========================================================================= //
 
 #pragma once
@@ -18,13 +20,17 @@
 
 class JobSystem {
 public:
+    // Acceso Singleton global
     static JobSystem& get();
 
+    // Inicialización y apagado del pool de hilos
     void initialize(size_t p_thread_count = 0);
     void shutdown();
 
+    // Encolado básico sin retorno
     void enqueue_raw(std::function<void()> task);
 
+    // Encolado con retorno de std::future
     template<typename F, typename... Args>
     auto enqueue(F&& f, Args&&... args) 
         -> std::future<typename std::invoke_result<F, Args...>::type> {
@@ -40,9 +46,11 @@ public:
         return res;
     }
 
+    // Paralelización particionada optimizada (el hilo invocador procesa parte del trabajo)
     void parallel_for(size_t count, const std::function<void(size_t start, size_t end)>& loop_func);
 
     size_t get_worker_count() const;
+    bool is_initialized() const { return m_initialized; }
 
 private:
     JobSystem();

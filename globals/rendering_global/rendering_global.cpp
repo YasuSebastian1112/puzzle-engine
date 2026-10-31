@@ -1,12 +1,13 @@
 // ========================================================================= //
-// Sierra Engine - 2D/3D Hybrid Game Engine
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
-// ======================================================================
+// All rights reserved.
+// ========================================================================= //
 
 #include "rendering_global.h"
+#include <algorithm>
 #include <iostream>
-
-#include "rendering_global.h"
 
 RenderingGlobal& RenderingGlobal::get() {
     static RenderingGlobal instance;
@@ -14,17 +15,24 @@ RenderingGlobal& RenderingGlobal::get() {
 }
 
 bool RenderingGlobal::init() {
-    // La inicialización por hardware se delega a las ventanas al crearse
+    // La inicialización de contextos de hardware se delega a cada ventana en initialize()
     return true;
 }
 
 void RenderingGlobal::poll_events() {
+    // Procesar la cola de eventos si existe al menos una ventana activa
     if (!windows.empty() && windows[0]) {
         windows[0]->poll_events();
     }
 }
 
 void RenderingGlobal::shutdown() {
+    // Cerrar y liberar explícitamente todas las ventanas antes de vaciar el contenedor
+    for (auto& win : windows) {
+        if (win) {
+            win->close();
+        }
+    }
     windows.clear();
 }
 
@@ -37,11 +45,22 @@ std::shared_ptr<Window> RenderingGlobal::create_window(
     auto new_window = std::make_shared<Window>();
 
     if (!new_window->initialize(p_title, p_size, p_position, p_type)) {
+        std::cerr << "[RenderingGlobal] Error al inicializar ventana: " << p_title.c_str() << std::endl;
         return nullptr;
     }
 
     windows.push_back(new_window);
     return new_window;
+}
+
+void RenderingGlobal::destroy_window(const std::shared_ptr<Window>& p_window) {
+    if (!p_window) return;
+
+    auto it = std::find(windows.begin(), windows.end(), p_window);
+    if (it != windows.end()) {
+        (*it)->close();
+        windows.erase(it);
+    }
 }
 
 std::shared_ptr<Window> RenderingGlobal::get_primary_window() const {

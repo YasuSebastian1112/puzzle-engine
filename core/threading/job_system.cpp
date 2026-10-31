@@ -1,6 +1,8 @@
 // ========================================================================= //
-// Puzzle Engine - 2D/3D Hybrid Game Engine
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
 // ========================================================================= //
 
 #include "job_system.h"
@@ -49,40 +51,51 @@ void JobSystem::enqueue_raw(std::function<void()> task) {
 void JobSystem::parallel_for(size_t count, const std::function<void(size_t start, size_t end)>& loop_func) {
     if (count == 0) return;
 
-    size_t thread_count = m_workers.size();
-    if (thread_count == 0 || count < thread_count * 2) {
+    size_t worker_count = m_workers.size();
+    // Ejecución secuencial si no hay workers o la carga de trabajo es trivial
+    if (worker_count == 0 || count < (worker_count + 1) * 2) {
         loop_func(0, count);
         return;
     }
 
-    // Usamos shared_ptr para el estado de la barrera para evitar colapsos de memoria en stack
-    struct BarrierState {
+    // Dividir entre workers + hilo principal para no desperdiciar ciclos del llamador
+    size_t total_slices = worker_count + 1;
+    size_t chunk_size = count / total_slices;
+
+    // Barrera en stack local sin asignaciones dinámicas en heap
+    struct LocalBarrier {
         std::atomic<size_t> remaining;
         std::mutex mutex;
         std::condition_variable cv;
-        explicit BarrierState(size_t total) : remaining(total) {}
-    };
+        explicit LocalBarrier(size_t total) : remaining(total) {}
+    } barrier(worker_count);
 
-    auto barrier = std::make_shared<BarrierState>(thread_count);
-    size_t chunk_size = count / thread_count;
-
-    for (size_t i = 0; i < thread_count; ++i) {
+    // Encolar las porciones destinadas a los hilos trabajadores
+    for (size_t i = 0; i < worker_count; ++i) {
         size_t start = i * chunk_size;
-        size_t end = (i == thread_count - 1) ? count : start + chunk_size;
+        size_t end = start + chunk_size;
 
-        enqueue_raw([start, end, &loop_func, barrier]() {
+        enqueue_raw([start, end, &loop_func, &barrier]() {
             loop_func(start, end);
-            if (barrier->remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                std::unique_lock<std::mutex> lock(barrier->mutex);
-                barrier->cv.notify_one();
+            if (barrier.remaining.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                std::unique_lock<std::mutex> lock(barrier.mutex);
+                barrier.cv.notify_one();
             }
         });
     }
 
-    std::unique_lock<std::mutex> lock(barrier->mutex);
-    barrier->cv.wait(lock, [&barrier]() {
-        return barrier->remaining.load(std::memory_order_acquire) == 0;
-    });
+    // El hilo principal computa inmediatamente la última porción sin bloquearse
+    size_t main_start = worker_count * chunk_size;
+    size_t main_end = count;
+    loop_func(main_start, main_end);
+
+    // Espera activa a que los workers terminen su fracción de carga
+    if (barrier.remaining.load(std::memory_order_acquire) > 0) {
+        std::unique_lock<std::mutex> lock(barrier.mutex);
+        barrier.cv.wait(lock, [&barrier]() {
+            return barrier.remaining.load(std::memory_order_acquire) == 0;
+        });
+    }
 }
 
 void JobSystem::shutdown() {

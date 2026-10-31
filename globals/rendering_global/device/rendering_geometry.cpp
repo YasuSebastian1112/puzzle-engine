@@ -1,8 +1,18 @@
+// ========================================================================= //
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
+// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
+// ========================================================================= //
+
 #include "rendering_geometry.h"
 
 RenderingGeometry::RenderingGeometry(RenderingDevice* p_device)
     : rendering_device(p_device) {
-    }
+    // Preasignar capacidad para evitar reallocs continuos en el heap durante el renderizado
+    batched_vertices.reserve(MAX_BATCH_VERTICES);
+    batched_indices.reserve(MAX_BATCH_INDICES);
+}
 
 void RenderingGeometry::begin() {
     clear();
@@ -28,20 +38,14 @@ void RenderingGeometry::clear() {
     batched_indices.clear();
 }
 
-void RenderingGeometry::add_vertex(const Vertex2D& p_vertex) {
-    if (batched_vertices.size() >= MAX_BATCH_VERTICES) {
-        flush();
-    }
-    batched_vertices.push_back(p_vertex);
-}
-
 void RenderingGeometry::draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width) {
-    // Si el lote actual alcanza 4096 vértices, volcamos a GPU para no disparar la RAM
-    if (batched_vertices.size() >= 4096) {
-        flush();
-    }
+    check_batch_overflow(4, 6);
 
-    Vector2 dir = (p_to - p_from).normalized();
+    Vector2 delta = p_to - p_from;
+    float len = delta.length();
+    if (len <= 0.0001f) return;
+
+    Vector2 dir = delta / len;
     Vector2 normal = Vector2(-dir.y, dir.x) * (p_width * 0.5f);
 
     uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
@@ -69,10 +73,6 @@ void RenderingGeometry::draw_polyline(const std::vector<Vector2>& p_points, cons
 }
 
 void RenderingGeometry::draw_rect(const Rect2& p_rect, const Color& p_color, bool p_filled, float p_width) {
-    if (batched_vertices.size() >= 4096) {
-        flush();
-    }
-
     Rect2 r = p_rect.abs();
 
     Vector2 top_left = r.position;
@@ -81,6 +81,8 @@ void RenderingGeometry::draw_rect(const Rect2& p_rect, const Color& p_color, boo
     Vector2 bottom_left = r.position + Vector2(0.0f, r.size.y);
 
     if (p_filled) {
+        check_batch_overflow(4, 6);
+
         uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
 
         batched_vertices.push_back({ top_left,     p_color, Vector2(0.0f, 0.0f) });
@@ -106,15 +108,15 @@ void RenderingGeometry::draw_rect(const Rect2& p_rect, const Color& p_color, boo
 void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, const Color& p_color, bool p_filled, int p_segments) {
     if (p_segments < 3) p_segments = 3;
 
-    float step = (MathDefs::PI * 2) / static_cast<float>(p_segments);
-
     if (p_filled) {
-        if (batched_vertices.size() + p_segments + 2 >= 4096) {
-            flush();
-        }
+        size_t required_verts = p_segments + 2;
+        size_t required_indices = p_segments * 3;
+        check_batch_overflow(required_verts, required_indices);
 
         uint32_t center_idx = static_cast<uint32_t>(batched_vertices.size());
         batched_vertices.push_back({ p_center, p_color, Vector2(0.5f, 0.5f) });
+
+        float step = MathDefs::TAU / static_cast<float>(p_segments);
 
         for (int i = 0; i <= p_segments; ++i) {
             float angle = static_cast<float>(i) * step;
@@ -124,10 +126,11 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
 
         for (int i = 1; i <= p_segments; ++i) {
             batched_indices.push_back(center_idx);
-            batched_indices.push_back(center_idx + i);
-            batched_indices.push_back(center_idx + i + 1);
+            batched_indices.push_back(center_idx + static_cast<uint32_t>(i));
+            batched_indices.push_back(center_idx + static_cast<uint32_t>(i + 1));
         }
     } else {
+        float step = MathDefs::TAU / static_cast<float>(p_segments);
         for (int i = 0; i < p_segments; ++i) {
             float a1 = static_cast<float>(i) * step;
             float a2 = static_cast<float>(i + 1) * step;
@@ -143,21 +146,23 @@ void RenderingGeometry::draw_circle(const Vector2& p_center, float p_radius, con
 void RenderingGeometry::draw_polygon(const std::vector<Vector2>& p_points, const Color& p_color) {
     if (p_points.size() < 3) return;
 
+    size_t vert_count = p_points.size();
+    size_t index_count = (vert_count - 2) * 3;
+    check_batch_overflow(vert_count, index_count);
+
     uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
 
-    // Añadir todos los vértices del polígono
     for (const auto& pt : p_points) {
-        add_vertex({ pt, p_color, Vector2(0.0f, 0.0f) });
+        batched_vertices.push_back({ pt, p_color, Vector2(0.0f, 0.0f) });
     }
 
     // Triangulación tipo abanico (Triangle Fan)
-    for (size_t i = 1; i < p_points.size() - 1; ++i) {
+    for (size_t i = 1; i < vert_count - 1; ++i) {
         batched_indices.push_back(base_index);
         batched_indices.push_back(base_index + static_cast<uint32_t>(i));
         batched_indices.push_back(base_index + static_cast<uint32_t>(i + 1));
     }
 }
-
 
 void RenderingGeometry::draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color, float p_scale) {
     float cur_x = p_pos.x;
@@ -181,17 +186,25 @@ void RenderingGeometry::draw_text(const Vector2& p_pos, const String& p_text, co
 
         for (int row = 0; row < DefaultFont::GLYPH_HEIGHT; ++row) {
             uint8_t row_bits = glyph[row];
+            if (!row_bits) continue;
+
+            // Optimización: agrupar bits consecutivos en tiras horizontales continuas
             for (int col = 0; col < DefaultFont::GLYPH_WIDTH; ++col) {
-                // El bit más significativo representa el píxel izquierdo
                 if (row_bits & (0x80 >> col)) {
-                    Vector2 pixel_pos(cur_x + col * p_scale, cur_y + row * p_scale);
-                    Vector2 pixel_size(p_scale, p_scale);
-                    draw_rect(Rect2(pixel_pos, pixel_size), p_color, true);
+                    int run_len = 1;
+                    while ((col + run_len < DefaultFont::GLYPH_WIDTH) && (row_bits & (0x80 >> (col + run_len)))) {
+                        run_len++;
+                    }
+
+                    Vector2 run_pos(cur_x + static_cast<float>(col) * p_scale, cur_y + static_cast<float>(row) * p_scale);
+                    Vector2 run_size(static_cast<float>(run_len) * p_scale, p_scale);
+                    draw_rect(Rect2(run_pos, run_size), p_color, true);
+
+                    col += run_len - 1;
                 }
             }
         }
 
-        cur_x += (DefaultFont::GLYPH_WIDTH + 1) * p_scale; // Espaciado entre caracteres
+        cur_x += (DefaultFont::GLYPH_WIDTH + 1) * p_scale;
     }
 }
-
