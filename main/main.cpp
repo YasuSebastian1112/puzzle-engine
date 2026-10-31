@@ -1,318 +1,165 @@
+// ========================================================================= //
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
+// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
+// ========================================================================= //
+
 #include "globals/rendering_global/rendering_global.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
 #include "globals/input/input.h"
-#include "core/mathematics/math_definitions.h"
-#include "core/mathematics/math_functions.h"
-#include "core/mathematics/math_2d.h"
+#include "platform/system_info.h"
 #include "core/threading/job_system.h"
-#include <chrono>
-#include <random>
-#include <algorithm>
 #include <cstdio>
 
-// -----------------------------------------------------------------------------
-// ESTRUCTURAS DEL JUEGO (2D PURO)
-// -----------------------------------------------------------------------------
-struct Projectile {
-    Vector2 pos;
-    float vy;
-    bool active;
-    bool from_player;
-};
-
-struct Alien {
-    Vector2 pos;
-    bool alive;
-    int type; // 0: ligero, 1: medio, 2: pesado
-};
-
-struct BunkerBlock {
-    Rect2 rect;
-    int hp;
-};
-
-// -----------------------------------------------------------------------------
-// POOLS ESTÁTICOS (Cero asignaciones dinámicas en el heap)
-// -----------------------------------------------------------------------------
-constexpr int MAX_BULLETS = 64;
-static Projectile bullets[MAX_BULLETS];
-
-constexpr int ALIEN_COLS = 8;
-constexpr int ALIEN_ROWS = 4;
-constexpr int TOTAL_ALIENS = ALIEN_COLS * ALIEN_ROWS;
-static Alien aliens[TOTAL_ALIENS];
-
-constexpr int BUNKER_PARTS = 24; // 3 bunkers de 8 bloques cada uno
-static BunkerBlock bunkers[BUNKER_PARTS];
-
 int main() {
+    SystemInfo::initialize();
+
     JobSystem::get().initialize();
     RenderingGlobal& renderer = RenderingGlobal::get();
 
-    const int win_w = 800;
-    const int win_h = 600;
+    const int initial_w = 900;
+    const int initial_h = 600;
 
     auto primary_window = renderer.create_window(
-        Size2i(win_w, win_h),
-        "Puzzle Engine - Space Invaders 2D Classic",
-        Point2i(100, 100),
+        Size2i(initial_w, initial_h),
+        "Puzzle Engine - System Diagnostics & Hardware Monitor",
+        Point2i(80, 80),
         Window::Type::Game
     );
 
-    if (!primary_window) return -1;
+    if (!primary_window) {
+        return -1;
+    }
 
     primary_window->get_rendering_device().init_geometry_pipeline();
     RenderingGeometry geometry(&primary_window->get_rendering_device());
 
-    // -------------------------------------------------------------------------
-    // ESTADO DEL JUEGO
-    // -------------------------------------------------------------------------
-    Vector2 player_pos(400.0f, 540.0f);
-    const Vector2 player_size(32.0f, 16.0f);
-    int player_lives = 3;
-    int score = 0;
-    bool game_over = false;
-    bool victory = false;
+    SystemInfo::print_hardware_summary();
 
-    float shoot_cooldown = 0.0f;
-    float alien_move_dir = 1.0f;
-    float alien_step_timer = 0.0f;
-    float alien_speed = 40.0f;
+    // Consultas fijas fuera del bucle para no generar cadenas dinámicas en el heap
+    const String os_name     = SystemInfo::get_os_name();
+    const String cpu_name    = SystemInfo::get_cpu_model();
+    const String gpu_vendor  = SystemInfo::get_gpu_vendor();
+    const String gpu_device  = SystemInfo::get_gpu_renderer();
+    const String opengl_ver  = SystemInfo::get_gpu_driver_version();
+    const uint32_t cpu_cores = SystemInfo::get_cpu_logical_core_count();
 
-    std::mt19937 rng(1337);
-    std::uniform_real_distribution<float> shoot_rand(0.0f, 1.0f);
-
-    auto init_game = [&]() {
-        player_pos = Vector2(400.0f, 540.0f);
-        player_lives = 3;
-        score = 0;
-        game_over = false;
-        victory = false;
-        alien_move_dir = 1.0f;
-        alien_speed = 40.0f;
-
-        // Limpiar balas
-        for (int i = 0; i < MAX_BULLETS; ++i) bullets[i].active = false;
-
-        // Armar formación de aliens
-        for (int r = 0; r < ALIEN_ROWS; ++r) {
-            for (int c = 0; c < ALIEN_COLS; ++c) {
-                int idx = r * ALIEN_COLS + c;
-                aliens[idx].pos = Vector2(120.0f + c * 70.0f, 100.0f + r * 45.0f);
-                aliens[idx].alive = true;
-                aliens[idx].type = (r == 0) ? 2 : ((r < 2) ? 1 : 0);
-            }
-        }
-
-        // Armar 3 bunkers defensivos
-        int b_idx = 0;
-        float bunker_xs[3] = { 180.0f, 400.0f, 620.0f };
-        for (int b = 0; b < 3; ++b) {
-            float bx = bunker_xs[b];
-            for (int row = 0; row < 2; ++row) {
-                for (int col = 0; col < 4; ++col) {
-                    bunkers[b_idx].rect = Rect2(bx - 30.0f + col * 15.0f, 460.0f + row * 15.0f, 14.0f, 14.0f);
-                    bunkers[b_idx].hp = 3;
-                    b_idx++;
-                }
-            }
-        }
-    };
-
-    init_game();
-
-    // -------------------------------------------------------------------------
-    // BUCLE PRINCIPAL (Window::run para barra de título y eventos intactos)
-    // -------------------------------------------------------------------------
     primary_window->run([&](double p_delta) {
-        float dt = static_cast<float>(p_delta);
-        if (dt > 0.033f) dt = 0.016f;
+        SystemInfo::update(p_delta);
+        const auto perf = SystemInfo::get_performance_metrics();
+        const auto mem  = SystemInfo::get_memory_stats();
 
-        Size2i cur_sz = primary_window->get_size();
+        Size2i cur_size = primary_window->get_size();
 
-        // 1. INPUT DEL JUGADOR
-        if (!game_over && !victory) {
-            float move_input = 0.0f;
-            if (Input::is_key_pressed(Key::A) || Input::is_key_pressed(Key::Left))  move_input -= 1.0f;
-            if (Input::is_key_pressed(Key::D) || Input::is_key_pressed(Key::Right)) move_input += 1.0f;
-
-            player_pos.x += move_input * 320.0f * dt;
-            player_pos.x = Math::clamp(player_pos.x, 30.0f, static_cast<float>(cur_sz.width) - 30.0f);
-
-            // Disparo del jugador
-            shoot_cooldown -= dt;
-            if (Input::is_key_pressed(Key::Space) && shoot_cooldown <= 0.0f) {
-                for (int i = 0; i < MAX_BULLETS; ++i) {
-                    if (!bullets[i].active) {
-                        bullets[i].pos = Vector2(player_pos.x, player_pos.y - 12.0f);
-                        bullets[i].vy = -550.0f;
-                        bullets[i].active = true;
-                        bullets[i].from_player = true;
-                        shoot_cooldown = 0.28f;
-                        break;
-                    }
-                }
-            }
-        } else {
-            if (Input::is_key_pressed(Key::R)) {
-                init_game();
-            }
-        }
-
-        // 2. ACTUALIZACIÓN DE ALIENS Y BALAS
-        if (!game_over && !victory) {
-            // Movimiento lateral en bloque
-            bool hit_wall = false;
-            int alive_count = 0;
-
-            for (int i = 0; i < TOTAL_ALIENS; ++i) {
-                if (!aliens[i].alive) continue;
-                alive_count++;
-                aliens[i].pos.x += alien_move_dir * alien_speed * dt;
-
-                if (aliens[i].pos.x > cur_sz.width - 40.0f || aliens[i].pos.x < 40.0f) {
-                    hit_wall = true;
-                }
-
-                // Si los aliens tocan los bunkers o al jugador
-                if (aliens[i].pos.y >= player_pos.y - 20.0f) {
-                    game_over = true;
-                }
-
-                // Disparo aleatorio de aliens
-                if (shoot_rand(rng) < (0.012f * dt)) {
-                    for (int b = 0; b < MAX_BULLETS; ++b) {
-                        if (!bullets[b].active) {
-                            bullets[b].pos = Vector2(aliens[i].pos.x, aliens[i].pos.y + 12.0f);
-                            bullets[b].vy = 260.0f;
-                            bullets[b].active = true;
-                            bullets[b].from_player = false;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (alive_count == 0) {
-                victory = true;
-            }
-
-            // Cambiar de fila al tocar bordes
-            if (hit_wall) {
-                alien_move_dir *= -1.0f;
-                alien_speed = std::min(160.0f, alien_speed + 8.0f); // Se aceleran al descender
-                for (int i = 0; i < TOTAL_ALIENS; ++i) {
-                    if (aliens[i].alive) {
-                        aliens[i].pos.y += 18.0f;
-                    }
-                }
-            }
-
-            // Movimiento de proyectiles y colisiones
-            for (int i = 0; i < MAX_BULLETS; ++i) {
-                if (!bullets[i].active) continue;
-                bullets[i].pos.y += bullets[i].vy * dt;
-
-                // Fuera de pantalla
-                if (bullets[i].pos.y < 35.0f || bullets[i].pos.y > cur_sz.height) {
-                    bullets[i].active = false;
-                    continue;
-                }
-
-                // Impacto con Bunkers
-                for (int b = 0; b < BUNKER_PARTS; ++b) {
-                    if (bunkers[b].hp <= 0) continue;
-                    if (bunkers[b].rect.has_point(bullets[i].pos)) {
-                        bunkers[b].hp--;
-                        bullets[i].active = false;
-                        break;
-                    }
-                }
-                if (!bullets[i].active) continue;
-
-                // Bala del jugador contra Aliens
-                if (bullets[i].from_player) {
-                    for (int a = 0; a < TOTAL_ALIENS; ++a) {
-                        if (!aliens[a].alive) continue;
-                        Rect2 a_box(aliens[a].pos.x - 14.0f, aliens[a].pos.y - 10.0f, 28.0f, 20.0f);
-                        if (a_box.has_point(bullets[i].pos)) {
-                            aliens[a].alive = false;
-                            bullets[i].active = false;
-                            score += (aliens[a].type + 1) * 20;
-                            break;
-                        }
-                    }
-                } 
-                // Bala enemiga contra Jugador
-                else {
-                    Rect2 p_box(player_pos.x - player_size.x * 0.5f, player_pos.y - player_size.y * 0.5f, player_size.x, player_size.y);
-                    if (p_box.has_point(bullets[i].pos)) {
-                        bullets[i].active = false;
-                        player_lives--;
-                        if (player_lives <= 0) {
-                            game_over = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. RENDERIZADO 2D PURO CON BATCHING
-        primary_window->clear(Color(0.02f, 0.02f, 0.04f, 1.0f));
+        primary_window->clear(Color(0.04f, 0.04f, 0.06f, 1.0f));
         geometry.begin();
 
-        // Bunkers defensivos
-        for (int i = 0; i < BUNKER_PARTS; ++i) {
-            if (bunkers[i].hp <= 0) continue;
-            float alpha = bunkers[i].hp / 3.0f;
-            Color b_col(0.15f, 0.85f, 0.35f, alpha);
-            geometry.draw_rect(bunkers[i].rect, b_col, true);
-        }
+        // ---------------------------------------------------------------------
+        // 1. PANEL SUPERIOR: ESPECIFICACIONES DE HARDWARE
+        // ---------------------------------------------------------------------
+        Rect2 hw_panel(20.0f, 44.0f, static_cast<float>(cur_size.width) - 40.0f, 175.0f);
+        geometry.draw_rect(hw_panel, Color(0.08f, 0.08f, 0.12f, 0.95f), true);
+        geometry.draw_rect(hw_panel, Color(0.18f, 0.22f, 0.32f, 1.0f), false, 1.0f);
 
-        // Aliens
-        for (int i = 0; i < TOTAL_ALIENS; ++i) {
-            if (!aliens[i].alive) continue;
-            Color col = (aliens[i].type == 2) ? Color(1.0f, 0.25f, 0.25f) :
-                        ((aliens[i].type == 1) ? Color(0.95f, 0.85f, 0.15f) : Color(0.25f, 0.75f, 1.0f));
+        geometry.draw_text(Vector2(35.0f, 54.0f), "HARDWARE ENVIRONMENT", Color(0.25f, 0.85f, 1.0f), 1.6f);
 
-            // Cuerpo del alien
-            geometry.draw_rect(Rect2(aliens[i].pos.x - 12.0f, aliens[i].pos.y - 8.0f, 24.0f, 16.0f), col, true);
-            // Antenas / ojos
-            geometry.draw_rect(Rect2(aliens[i].pos.x - 6.0f, aliens[i].pos.y - 4.0f, 4.0f, 4.0f), Color(0.0f, 0.0f, 0.0f), true);
-            geometry.draw_rect(Rect2(aliens[i].pos.x + 2.0f, aliens[i].pos.y - 4.0f, 4.0f, 4.0f), Color(0.0f, 0.0f, 0.0f), true);
-        }
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "OS       : %s", os_name.c_str());
+        geometry.draw_text(Vector2(35.0f, 80.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        // Proyectiles
-        for (int i = 0; i < MAX_BULLETS; ++i) {
-            if (!bullets[i].active) continue;
-            Color b_col = bullets[i].from_player ? Color(0.2f, 1.0f, 0.4f) : Color(1.0f, 0.3f, 0.3f);
-            geometry.draw_rect(Rect2(bullets[i].pos.x - 2.0f, bullets[i].pos.y - 6.0f, 4.0f, 12.0f), b_col, true);
-        }
+        std::snprintf(buf, sizeof(buf), "CPU      : %s (%u LOGICAL THREADS)", cpu_name.c_str(), cpu_cores);
+        geometry.draw_text(Vector2(35.0f, 102.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        // Nave del Jugador
-        if (!game_over) {
-            geometry.draw_rect(Rect2(player_pos.x - player_size.x * 0.5f, player_pos.y, player_size.x, player_size.y * 0.5f), Color(0.2f, 0.8f, 1.0f), true);
-            geometry.draw_rect(Rect2(player_pos.x - 4.0f, player_pos.y - 8.0f, 8.0f, 8.0f), Color(0.9f, 0.95f, 1.0f), true);
-        }
+        std::snprintf(buf, sizeof(buf), "GPU VEND : %s", gpu_vendor.c_str());
+        geometry.draw_text(Vector2(35.0f, 124.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        // HUD / OSD
-        char score_str[64];
-        std::snprintf(score_str, sizeof(score_str), "SCORE: %04d", score);
-        geometry.draw_text(Vector2(24.0f, 42.0f), score_str, Color(0.2f, 0.85f, 1.0f), 1.8f);
+        std::snprintf(buf, sizeof(buf), "GPU DEV  : %s", gpu_device.c_str());
+        geometry.draw_text(Vector2(35.0f, 146.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        char lives_str[32];
-        std::snprintf(lives_str, sizeof(lives_str), "LIVES: %d", player_lives);
-        geometry.draw_text(Vector2(cur_sz.width - 150.0f, 42.0f), lives_str, Color(0.35f, 1.0f, 0.45f), 1.8f);
+        std::snprintf(buf, sizeof(buf), "OPENGL   : %s", opengl_ver.c_str());
+        geometry.draw_text(Vector2(35.0f, 168.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        if (game_over) {
-            geometry.draw_text(Vector2(cur_sz.width * 0.5f - 110.0f, 260.0f), "GAME OVER", Color(1.0f, 0.2f, 0.2f), 3.0f);
-            geometry.draw_text(Vector2(cur_sz.width * 0.5f - 150.0f, 310.0f), "PRESS [R] TO RESTART", Color(1.0f, 1.0f, 1.0f), 1.6f);
-        } else if (victory) {
-            geometry.draw_text(Vector2(cur_sz.width * 0.5f - 130.0f, 260.0f), "YOU WIN!", Color(0.2f, 1.0f, 0.4f), 3.0f);
-            geometry.draw_text(Vector2(cur_sz.width * 0.5f - 150.0f, 310.0f), "PRESS [R] TO RESTART", Color(1.0f, 1.0f, 1.0f), 1.6f);
-        }
+        float total_ram_gb = static_cast<float>(mem.system_total_ram_bytes) / 1073741824.0f;
+        float free_ram_gb  = static_cast<float>(mem.system_free_ram_bytes)  / 1073741824.0f;
+        std::snprintf(buf, sizeof(buf), "SYS RAM  : %.2f GB FREE / %.2f GB TOTAL", free_ram_gb, total_ram_gb);
+        geometry.draw_text(Vector2(35.0f, 190.0f), buf, Color(0.85f, 0.85f, 0.90f), 1.3f);
 
-        // Barra de título nativa con botones y arrastre
+        // ---------------------------------------------------------------------
+        // 2. TARJETAS DE MONITOREO DE RENDIMIENTO EN VIVO (HUD)
+        // ---------------------------------------------------------------------
+        float card_y = 230.0f;
+        float card_gap = 14.0f;
+        float card_width = (static_cast<float>(cur_size.width) - 40.0f - (card_gap * 3.0f)) / 4.0f;
+        float card_height = 110.0f;
+
+        // Tarjeta 1: Framerate (FPS)
+        Rect2 card_fps(20.0f, card_y, card_width, card_height);
+        geometry.draw_rect(card_fps, Color(0.08f, 0.10f, 0.14f, 0.95f), true);
+        geometry.draw_rect(card_fps, Color(0.20f, 0.80f, 0.40f, 0.8f), false, 1.0f);
+        geometry.draw_text(Vector2(card_fps.position.x + 12.0f, card_y + 12.0f), "FRAMERATE", Color(0.6f, 0.7f, 0.8f), 1.2f);
+        std::snprintf(buf, sizeof(buf), "%.0f", perf.fps);
+        geometry.draw_text(Vector2(card_fps.position.x + 12.0f, card_y + 36.0f), buf, Color(0.25f, 1.0f, 0.45f), 3.2f);
+        geometry.draw_text(Vector2(card_fps.position.x + 12.0f, card_y + 82.0f), "FRAMES / SEC", Color(0.4f, 0.5f, 0.6f), 1.0f);
+
+        // Tarjeta 2: Tiempo de Cuadro (Latencia en ms)
+        Rect2 card_ms(card_fps.position.x + card_width + card_gap, card_y, card_width, card_height);
+        geometry.draw_rect(card_ms, Color(0.08f, 0.10f, 0.14f, 0.95f), true);
+        geometry.draw_rect(card_ms, Color(0.20f, 0.65f, 1.00f, 0.8f), false, 1.0f);
+        geometry.draw_text(Vector2(card_ms.position.x + 12.0f, card_y + 12.0f), "FRAME TIME", Color(0.6f, 0.7f, 0.8f), 1.2f);
+        std::snprintf(buf, sizeof(buf), "%.2f", perf.frame_time_ms);
+        geometry.draw_text(Vector2(card_ms.position.x + 12.0f, card_y + 36.0f), buf, Color(0.20f, 0.75f, 1.0f), 3.2f);
+        geometry.draw_text(Vector2(card_ms.position.x + 12.0f, card_y + 82.0f), "MILLISECONDS", Color(0.4f, 0.5f, 0.6f), 1.0f);
+
+        // Tarjeta 3: RAM del Motor (Working Set Privado)
+        Rect2 card_ram(card_ms.position.x + card_width + card_gap, card_y, card_width, card_height);
+        geometry.draw_rect(card_ram, Color(0.08f, 0.10f, 0.14f, 0.95f), true);
+        geometry.draw_rect(card_ram, Color(0.95f, 0.75f, 0.20f, 0.8f), false, 1.0f);
+        geometry.draw_text(Vector2(card_ram.position.x + 12.0f, card_y + 12.0f), "ENGINE RAM", Color(0.6f, 0.7f, 0.8f), 1.2f);
+        std::snprintf(buf, sizeof(buf), "%.1f", perf.memory_used_mb);
+        geometry.draw_text(Vector2(card_ram.position.x + 12.0f, card_y + 36.0f), buf, Color(1.0f, 0.85f, 0.25f), 2.6f);
+
+        // Tarjeta 4: Carga de CPU del proceso
+        Rect2 card_cpu(card_ram.position.x + card_width + card_gap, card_y, card_width, card_height);
+        geometry.draw_rect(card_cpu, Color(0.08f, 0.10f, 0.14f, 0.95f), true);
+        Color cpu_col = (perf.cpu_process_usage_pct > 15.0f) ? Color(1.0f, 0.3f, 0.3f) : Color(0.9f, 0.35f, 1.0f);
+        geometry.draw_rect(card_cpu, cpu_col, false, 1.0f);
+        geometry.draw_text(Vector2(card_cpu.position.x + 12.0f, card_y + 12.0f), "CPU USAGE", Color(0.6f, 0.7f, 0.8f), 1.2f);
+        std::snprintf(buf, sizeof(buf), "%.1f%%", perf.cpu_process_usage_pct);
+        geometry.draw_text(Vector2(card_cpu.position.x + 12.0f, card_y + 36.0f), buf, cpu_col, 3.2f);
+        geometry.draw_text(Vector2(card_cpu.position.x + 12.0f, card_y + 82.0f), "NORMALIZED CORES", Color(0.4f, 0.5f, 0.6f), 1.0f);
+
+        // ---------------------------------------------------------------------
+        // 3. BARRA DE TELEMETRÍA EN TIEMPO REAL
+        // ---------------------------------------------------------------------
+        float status_y = card_y + card_height + 16.0f;
+        Rect2 status_panel(20.0f, status_y, static_cast<float>(cur_size.width) - 40.0f, 160.0f);
+        geometry.draw_rect(status_panel, Color(0.06f, 0.06f, 0.09f, 0.95f), true);
+        geometry.draw_rect(status_panel, Color(0.14f, 0.16f, 0.22f, 1.0f), false, 1.0f);
+
+        geometry.draw_text(Vector2(35.0f, status_y + 14.0f), "RUNTIME TELEMETRY", Color(0.5f, 0.6f, 0.75f), 1.4f);
+
+        size_t v_count = geometry.get_vertices().size();
+        size_t i_count = geometry.get_indices().size();
+        size_t workers = JobSystem::get().get_worker_count();
+
+        std::snprintf(buf, sizeof(buf), "> BATCH BUFFER : %zu VERTICES | %zu INDICES IN QUEUE", v_count, i_count);
+        geometry.draw_text(Vector2(35.0f, status_y + 42.0f), buf, Color(0.40f, 0.90f, 0.60f), 1.3f);
+
+        std::snprintf(buf, sizeof(buf), "> THREAD POOL  : %zu WORKERS ACTIVE IN BSS BARRIER", workers);
+        geometry.draw_text(Vector2(35.0f, status_y + 66.0f), buf, Color(0.40f, 0.90f, 0.60f), 1.3f);
+
+        float virt_mb = static_cast<float>(mem.process_virtual_used_bytes) / 1048576.0f;
+        std::snprintf(buf, sizeof(buf), "> MEMORY SPACE : WORKING SET = %.1f MB | COMMIT SIZE = %.1f MB", 
+            perf.memory_used_mb, virt_mb);
+        geometry.draw_text(Vector2(35.0f, status_y + 90.0f), buf, Color(0.40f, 0.90f, 0.60f), 1.3f);
+
+        std::snprintf(buf, sizeof(buf), "> WINDOW STATS : %dx%d RESOLUTION | VSYNC LOCKED (1:1)", cur_size.width, cur_size.height);
+        geometry.draw_text(Vector2(35.0f, status_y + 114.0f), buf, Color(0.40f, 0.90f, 0.60f), 1.3f);
+
+        // ---------------------------------------------------------------------
+        // 4. BARRA DE TÍTULO
+        // ---------------------------------------------------------------------
         primary_window->draw_title_bar(geometry);
 
         geometry.flush();

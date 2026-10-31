@@ -18,4 +18,6 @@ if(WIN32)
     )
 endif()
 
-target_link_libraries(puzzle_platform PUBLIC puzzle_core glfw)
+target_link_libraries(puzzle_platform PUBLIC puzzle_core glad
+    glfw
+    OpenGL::GL)
