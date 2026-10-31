@@ -14,7 +14,7 @@
 #include <windows.h>
 #include "platform/system_info.h"
 #include "platform/windows/os_windows.h"
-
+#include "licenses_generated/logo.h"
 
 static WNDPROC g_original_wndproc = nullptr;
 
@@ -72,7 +72,7 @@ void Window::enable_native_windows_snap(void* p_native_window_handle) {
 #endif
 }
 
-Window::Window() {}
+Window::Window() : m_geometry(&rendering_device) {}
 
 Window::~Window() {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
@@ -83,6 +83,13 @@ Window::~Window() {
         if (m_cursor_nesw)    glfwDestroyCursor(m_cursor_nesw);
         if (m_cursor_nwse)    glfwDestroyCursor(m_cursor_nwse);
     }
+
+    // Liberar la textura del icono antes de destruir el contexto OpenGL
+    if (m_icon_loaded) {
+        m_title_bar_icon.release();
+        m_icon_loaded = false;
+    }
+
     rendering_device.destroy_window();
 }
 
@@ -116,6 +123,10 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
     OSWindows::trim_memory();
 #endif
 
+    if (type == Type::Editor) {
+        set_icon_from_memory(EmbeddedAssets::PUZZLE_LOGO_PNG, EmbeddedAssets::PUZZLE_LOGO_PNG_SIZE);
+    }
+
     return true;
 }
 
@@ -124,6 +135,39 @@ void Window::set_title(const String& p_title) {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (win) {
         glfwSetWindowTitle(win, p_title.c_str());
+    }
+}
+
+bool Window::set_icon(const String& p_filepath) {
+    if (m_icon_loaded) {
+        m_title_bar_icon.release();
+        m_icon_loaded = false;
+    }
+
+    if (m_title_bar_icon.load_from_file(p_filepath.c_str(), false)) {
+        m_icon_loaded = true;
+        return true;
+    }
+    return false;
+}
+
+bool Window::set_icon_from_memory(const uint8_t* p_buffer, size_t p_size) {
+    if (m_icon_loaded) {
+        m_title_bar_icon.release();
+        m_icon_loaded = false;
+    }
+
+    if (m_title_bar_icon.load_from_memory(p_buffer, p_size, false)) {
+        m_icon_loaded = true;
+        return true;
+    }
+    return false;
+}
+
+void Window::clear_icon() {
+    if (m_icon_loaded) {
+        m_title_bar_icon.release();
+        m_icon_loaded = false;
     }
 }
 
@@ -528,8 +572,17 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     // Fondo de la barra
     p_geometry.draw_rect(Rect2(0, 0, static_cast<float>(win_sz.width), TITLE_BAR_HEIGHT), Color(0.10f, 0.10f, 0.13f, 1.0f), true);
 
-    // Texto del título
-    float text_x = 12.0f;
+    // Icono del motor en la esquina superior izquierda (18x18 px centrado verticalmente en la barra)
+    float icon_offset_x = 8.0f;
+    if (m_icon_loaded) {
+        constexpr float ICON_SIZE = 18.0f;
+        float icon_y = (TITLE_BAR_HEIGHT - ICON_SIZE) * 0.5f;
+        p_geometry.draw_texture(Rect2(icon_offset_x, icon_y, ICON_SIZE, ICON_SIZE), m_title_bar_icon);
+        icon_offset_x += ICON_SIZE + 8.0f;
+    }
+
+    // Texto del título desplazado para no encimarse con el icono
+    float text_x = icon_offset_x;
     float text_y = (TITLE_BAR_HEIGHT - 8.0f) * 0.5f;
     p_geometry.draw_text(Vector2(text_x, text_y), title, Color(0.85f, 0.85f, 0.90f, 1.0f), 1.0f);
 
@@ -574,9 +627,17 @@ void Window::run(FrameCallback p_frame_callback) {
     // Registra el callback de renderizado en el dispositivo gráfico para soportar
     // repintado continuo durante eventos de arrastre o redimensionado modal en el SO.
     rendering_device.set_render_callback([this, &p_frame_callback]() {
+        clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
+        m_geometry.begin();
+
+        // Dibuja la barra de título automáticamente en cada redibujado de la ventana
+        draw_title_bar(m_geometry);
+
         if (p_frame_callback) {
             p_frame_callback(0.016);
         }
+
+        m_geometry.flush();
     });
 
     double last_time = glfwGetTime();
@@ -603,10 +664,19 @@ void Window::run(FrameCallback p_frame_callback) {
         if (delta > 0.05) delta = 0.016;
         last_time = current_time;
 
+        // Limpieza y emisión de geometrías de la ventana
+        clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
+        m_geometry.begin();
+
+        // Barra de título del motor encapsulada (fondo, icono, título y botones)
+        draw_title_bar(m_geometry);
+
         // Ejecuta la lógica del juego o aplicación y la emisión de comandos de dibujo
         if (p_frame_callback) {
             p_frame_callback(delta);
         }
+
+        m_geometry.flush();
 
         // Presenta el fotograma en pantalla intercambiando los búferes de color
         swap_buffers();

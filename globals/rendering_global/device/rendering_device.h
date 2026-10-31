@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include "core/variant.h"
 #include <functional>
 
@@ -24,6 +26,7 @@ public:
 
 private:
     WindowHandle native_window = nullptr;
+    GLuint m_default_white_texture = 0;
 
     // Identificadores de objetos de OpenGL
     uint32_t geom_vao = 0;
@@ -92,4 +95,6 @@ public:
     // Pipeline geométrico 2D
     void init_geometry_pipeline();
     void render_geometry(const void* p_vertices, size_t p_vertex_bytes, const uint32_t* p_indices, size_t p_index_count);
+    [[nodiscard]] GLuint get_default_white_texture() const { return m_default_white_texture; }
+
 };

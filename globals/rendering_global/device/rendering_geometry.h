@@ -7,10 +7,13 @@
 
 #pragma once
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <vector>
 #include <cstdint>
 #include "core/variant.h"
 #include "rendering_device.h"
+#include "rendering_texture.h"
 #include "globals/rendering_global/font_bitmap_primitive.h"
 
 class RenderingGeometry {
@@ -56,7 +59,8 @@ public:
     void draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width = 1.0f);
 
     void draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color = Color(1.0f, 1.0f, 1.0f, 1.0f), float p_scale = 2.0f);
-
+    void draw_texture(const Rect2& p_rect, uint32_t p_texture_id, const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f), const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f));
+    void draw_texture(const Rect2& p_rect, const RenderingTexture& p_texture, const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f), const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f));
     // Ciclo de control del batching
     void begin();
     void flush();

@@ -11,6 +11,7 @@
 #include "classes/object.h"
 #include "core/mathematics/math_2d.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
+#include "globals/rendering_global/device/rendering_texture.h"
 
 typedef struct GLFWcursor GLFWcursor;
 
@@ -49,6 +50,9 @@ public:
 
 private:
     RenderingDevice rendering_device;
+    RenderingGeometry m_geometry;
+    RenderingTexture m_title_bar_icon;
+    bool m_icon_loaded = false;
 
     Type type = Type::Custom;
     Mode current_mode = Mode::Windowed;
@@ -128,6 +132,12 @@ public:
 
     const String& get_title() const { return title; }
     void set_title(const String& p_title);
+    bool set_icon(const String& p_filepath);
+    // Asigna el icono desde un buffer en memoria (PNG codificado)
+    bool set_icon_from_memory(const uint8_t* p_buffer, size_t p_size);
+    // Limpia o remueve el icono actual
+    void clear_icon();
+
 
     void process_window_interaction();
     void draw_title_bar(RenderingGeometry& p_geometry);
@@ -138,4 +148,5 @@ public:
     bool should_close() const;
 
     RenderingDevice& get_rendering_device() { return rendering_device; }
+    RenderingGeometry& get_rendering_geometry() { return m_geometry; }
 };

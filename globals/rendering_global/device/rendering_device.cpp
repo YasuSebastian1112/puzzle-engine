@@ -5,10 +5,11 @@
 // All rights reserved.
 // ========================================================================= //
 
-#include "rendering_device.h"
-#include "globals/input/input.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include "rendering_device.h"
+#include "globals/input/input.h"
 #include <iostream>
 
 #if defined(_WIN32)
@@ -26,11 +27,13 @@ layout (location = 1) in vec4 a_color;
 layout (location = 2) in vec2 a_uv;
 
 out vec4 v_color;
+out vec2 v_uv;
 
 uniform mat4 u_projection;
 
 void main() {
     v_color = a_color;
+    v_uv = a_uv;
     gl_Position = u_projection * vec4(a_pos, 0.0, 1.0);
 }
 )";
@@ -38,10 +41,14 @@ void main() {
 static const char* fragment_shader_src = R"(
 #version 330 core
 in vec4 v_color;
+in vec2 v_uv;
+
+uniform sampler2D u_texture;
+
 out vec4 FragColor;
 
 void main() {
-    FragColor = v_color;
+    FragColor = texture(u_texture, v_uv) * v_color;
 }
 )";
 
@@ -246,10 +253,17 @@ void RenderingDevice::destroy_window() {
         if (geom_ebo)    { glDeleteBuffers(1, &geom_ebo); geom_ebo = 0; }
         if (geom_shader) { glDeleteProgram(geom_shader); geom_shader = 0; }
 
+        if (m_default_white_texture) {
+            glDeleteTextures(1, &m_default_white_texture);
+            m_default_white_texture = 0;
+        }
+
         glfwDestroyWindow(win);
         native_window = nullptr;
         glfwTerminate();
     }
+    
+
 }
 
 void RenderingDevice::trigger_frame_update() {
@@ -397,6 +411,25 @@ void RenderingDevice::init_geometry_pipeline() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, reinterpret_cast<void*>(sizeof(float) * 6));
 
     glBindVertexArray(0);
+
+    // Crear textura blanca de respaldo (1x1 RGBA = 0xFFFFFFFF)
+    uint32_t white_pixel = 0xFFFFFFFF;
+    glGenTextures(1, &m_default_white_texture);
+    glBindTexture(GL_TEXTURE_2D, m_default_white_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
+
+    // Activar en el slot 0 por defecto
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_default_white_texture);
+
+    // Asegurar que el sampler use la unidad 0
+    GLint tex_loc = glGetUniformLocation(geom_shader, "u_texture");
+    if (tex_loc != -1) {
+        glUseProgram(geom_shader);
+        glUniform1i(tex_loc, 0);
+    }
 }
 
 void RenderingDevice::render_geometry(const void* p_vertices, size_t p_vertex_bytes, const uint32_t* p_indices, size_t p_index_count) {
