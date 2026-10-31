@@ -73,6 +73,22 @@ void OSWindows::install_window_hooks(HWND p_hwnd, FramePumpCallback p_callback) 
     s_frame_callback = p_callback;
     s_initial_trim_done = false;
 
+    // Asignar el icono compilado en el ejecutable a la ventana y barra de tareas
+    HINSTANCE hInstance = GetModuleHandle(nullptr);
+    HICON hIconBig = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(1), IMAGE_ICON, 
+                                      GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 
+                                      LR_DEFAULTCOLOR);
+    HICON hIconSmall = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(1), IMAGE_ICON, 
+                                        GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 
+                                        LR_DEFAULTCOLOR);
+
+    if (hIconBig) {
+        SendMessage(p_hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIconBig);
+    }
+    if (hIconSmall) {
+        SendMessage(p_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall);
+    }
+
     // Subclasear la ventana de GLFW con nuestro procedimiento de control
     s_original_wndproc = reinterpret_cast<WNDPROC>(
         SetWindowLongPtr(p_hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(custom_wndproc))

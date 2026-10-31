@@ -1,5 +1,9 @@
 file(GLOB MAIN_SOURCES "*.cpp" "*.h")
 
+
+if(WIN32)
+    list(APPEND MAIN_SOURCES "${CMAKE_SOURCE_DIR}/platform/windows/puzzle_engine.rc")
+endif()
 # Generar bin
 
 add_executable(${PROJECT_NAME} ${MAIN_SOURCES})
@@ -23,3 +27,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw
     OpenGL::GL
 )
+
