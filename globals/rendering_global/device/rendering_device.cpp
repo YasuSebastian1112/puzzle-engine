@@ -5,7 +5,6 @@
 // All rights reserved.
 // ========================================================================= //
 
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "rendering_device.h"
@@ -57,6 +56,9 @@ void RenderingDevice::update_orthographic_projection() {
     float right = static_cast<float>(current_screen_size.width);
     float bottom = static_cast<float>(current_screen_size.height);
 
+    if (right <= 0.0f) right = 1.0f;
+    if (bottom <= 0.0f) bottom = 1.0f;
+
     m_cached_ortho_mat[0]  = 2.0f / right;
     m_cached_ortho_mat[1]  = 0.0f;
     m_cached_ortho_mat[2]  = 0.0f;
@@ -76,6 +78,40 @@ void RenderingDevice::update_orthographic_projection() {
     m_cached_ortho_mat[13] = 1.0f;
     m_cached_ortho_mat[14] = 0.0f;
     m_cached_ortho_mat[15] = 1.0f;
+
+    m_proj_dirty = false;
+}
+
+void RenderingDevice::set_orthographic_projection(float left, float right, float bottom, float top) {
+    float width = right - left;
+    float height = top - bottom;
+    if (width == 0.0f || height == 0.0f) return;
+
+    m_cached_ortho_mat[0]  = 2.0f / width;
+    m_cached_ortho_mat[1]  = 0.0f;
+    m_cached_ortho_mat[2]  = 0.0f;
+    m_cached_ortho_mat[3]  = 0.0f;
+
+    m_cached_ortho_mat[4]  = 0.0f;
+    m_cached_ortho_mat[5]  = 2.0f / height;
+    m_cached_ortho_mat[6]  = 0.0f;
+    m_cached_ortho_mat[7]  = 0.0f;
+
+    m_cached_ortho_mat[8]  = 0.0f;
+    m_cached_ortho_mat[9]  = 0.0f;
+    m_cached_ortho_mat[10] = -1.0f;
+    m_cached_ortho_mat[11] = 0.0f;
+
+    m_cached_ortho_mat[12] = -(right + left) / width;
+    m_cached_ortho_mat[13] = -(top + bottom) / height;
+    m_cached_ortho_mat[14] = 0.0f;
+    m_cached_ortho_mat[15] = 1.0f;
+
+    // Subir el uniform al shader inmediatamente
+    if (geom_shader != 0 && geom_proj_loc != -1) {
+        glUseProgram(geom_shader);
+        glUniformMatrix4fv(geom_proj_loc, 1, GL_FALSE, m_cached_ortho_mat);
+    }
 
     m_proj_dirty = false;
 }
@@ -107,36 +143,21 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     native_window = static_cast<WindowHandle>(window);
     glfwSetWindowPos(window, p_pos.x, p_pos.y);
     glfwMakeContextCurrent(window);
-    glfwSetWindowUserPointer(window, this);
 
-    // Callbacks del subsistema de ventanas
-    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
-        RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
-        if (device && width > 0 && height > 0) {
-            device->current_screen_size = Size2i(width, height);
-            device->m_proj_dirty = true;
-            device->set_viewport(Point2i(0, 0), Size2i(width, height));
-            device->trigger_frame_update();
-        }
-    });
-
-    glfwSetWindowRefreshCallback(window, [](GLFWwindow* win) {
-        RenderingDevice* device = static_cast<RenderingDevice*>(glfwGetWindowUserPointer(win));
-        if (device) {
-            device->trigger_frame_update();
-        }
-    });
-
-#if defined(_WIN32)
-    HWND hwnd = glfwGetWin32Window(window);
-    if (hwnd) {
-        OSWindows::install_window_hooks(hwnd, [this]() {
-            trigger_frame_update();
-        });
+    // Primero cargar punteros de función de OpenGL antes de registrar callbacks o hooks de ventana
+    if (!gladLoadGL()) {
+        std::cerr << "[RenderingDevice] Fallo al inicializar los punteros de funciones con GLAD." << std::endl;
+        glfwDestroyWindow(window);
+        native_window = nullptr;
+        glfwTerminate();
+        return false;
     }
-#endif
 
-    // Callbacks del subsistema de entrada
+    init_geometry_pipeline();
+    set_viewport(Point2i(0, 0), p_size);
+    set_blend_enabled(true);
+
+    // Callbacks del subsistema de entrada (no dependen de glfwGetWindowUserPointer)
     glfwSetKeyCallback(window, [](GLFWwindow*, int key, int, int action, int) {
         Input::on_key_event(key, action);
     });
@@ -153,18 +174,15 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
         Input::on_mouse_scrolled_event(xoffset, yoffset);
     });
 
-    if (!gladLoadGL()) {
-        std::cerr << "[RenderingDevice] Fallo al inicializar los punteros de funciones con GLAD." << std::endl;
-        return false;
+#if defined(_WIN32)
+    HWND hwnd = glfwGetWin32Window(window);
+    if (hwnd) {
+        OSWindows::install_window_hooks(hwnd, [this]() {
+            trigger_frame_update();
+        });
     }
 
-    init_geometry_pipeline();
-    set_viewport(Point2i(0, 0), p_size);
-    set_blend_enabled(true);    
-
-    // Purgar inmediatamente las páginas transitorias de arranque (DLLs, JIT shaders, etc.)
-#if defined(_WIN32)
-    // Forzar a Windows a vaciar la cola de mensajes del hilo actual
+    // Forzar a Windows a vaciar la cola de mensajes del hilo actual (ya con GLAD inicializado)
     MSG msg;
     while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
@@ -240,6 +258,8 @@ void RenderingDevice::set_window_mode(WindowMode p_mode) {
 }
 
 void RenderingDevice::destroy_window() {
+    render_callback = nullptr;
+
     if (native_window) {
         GLFWwindow* win = static_cast<GLFWwindow*>(native_window);
 
@@ -262,21 +282,32 @@ void RenderingDevice::destroy_window() {
         native_window = nullptr;
         glfwTerminate();
     }
-    
-
 }
 
 void RenderingDevice::trigger_frame_update() {
-    if (native_window) {
-        int fb_w = 0, fb_h = 0;
-        glfwGetFramebufferSize(static_cast<GLFWwindow*>(native_window), &fb_w, &fb_h);
-        if (fb_w > 0 && fb_h > 0 && (fb_w != current_screen_size.width || fb_h != current_screen_size.height)) {
-            current_screen_size = Size2i(fb_w, fb_h);
-            m_proj_dirty = true;
-            set_viewport(Point2i(0, 0), current_screen_size);
-        }
+    if (!native_window) return;
+
+    GLFWwindow* win = static_cast<GLFWwindow*>(native_window);
+#if defined(_WIN32)
+    HWND hwnd = glfwGetWin32Window(win);
+    if (hwnd && IsIconic(hwnd) != 0) {
+        return;
+    }
+#endif
+
+    int fb_w = 0, fb_h = 0;
+    glfwGetFramebufferSize(win, &fb_w, &fb_h);
+    if (fb_w <= 0 || fb_h <= 0) {
+        return;
     }
 
+    if (fb_w != current_screen_size.width || fb_h != current_screen_size.height) {
+        current_screen_size = Size2i(fb_w, fb_h);
+        m_proj_dirty = true;
+        set_viewport(Point2i(0, 0), current_screen_size);
+    }
+
+    // Ejecuta el repintado si existe un callback asignado durante eventos modales
     if (render_callback) {
         render_callback();
         swap_buffers();
@@ -320,6 +351,8 @@ void RenderingDevice::set_vsync(bool p_enabled) {
 }
 
 void RenderingDevice::set_viewport(const Point2i& p_position, const Size2i& p_size) {
+    if (p_size.width <= 0 || p_size.height <= 0) return;
+
     glViewport(
         static_cast<GLint>(p_position.x),
         static_cast<GLint>(p_position.y),
@@ -341,6 +374,8 @@ void RenderingDevice::clear_buffers(bool p_color, bool p_depth, bool p_stencil) 
 }
 
 void RenderingDevice::set_scissor(const Point2i& p_position, const Size2i& p_size) {
+    if (p_size.width <= 0 || p_size.height <= 0) return;
+
     glScissor(
         static_cast<GLint>(p_position.x),
         static_cast<GLint>(p_position.y),

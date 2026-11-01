@@ -22,6 +22,7 @@ public:
 
     static void install_window_hooks(HWND p_hwnd, FramePumpCallback p_callback);
     static void remove_window_hooks(HWND p_hwnd);
+    static void enable_borderless_snap(HWND p_hwnd);
 
     static void initialize();
     static void cleanup();
@@ -33,5 +34,6 @@ private:
     static inline WNDPROC s_original_wndproc = nullptr;
     static inline FramePumpCallback s_frame_callback = nullptr;
     static inline bool s_initial_trim_done = false;
+    static inline bool s_in_callback = false;
 };
 #endif

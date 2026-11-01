@@ -49,13 +49,15 @@ private:
     bool m_proj_dirty = true;
 
     bool in_modal_sizing = false;
-    FrameRenderCallback render_callback = nullptr;
+    std::function<void()> render_callback = nullptr;
 
     void update_orthographic_projection();
 
 public:
     RenderingDevice() = default;
     ~RenderingDevice();
+
+    void set_orthographic_projection(float left, float right, float bottom, float top);
 
     // Creación y ciclo de vida de la ventana
     bool create_window(const String& p_title, const Size2i& p_size, const Point2i& p_pos);
@@ -79,7 +81,17 @@ public:
     void set_window_mode(WindowMode p_mode);
     bool is_window_maximized() const;
 
-    void set_render_callback(FrameRenderCallback p_callback) { render_callback = p_callback; }
+    void set_screen_size(const Size2i& p_size) {
+        if (current_screen_size.width != p_size.width || current_screen_size.height != p_size.height) {
+            current_screen_size = p_size;
+            m_proj_dirty = true;
+        }
+    }
+
+    void set_render_callback(const std::function<void()>& p_callback) {
+        render_callback = p_callback;
+    }
+
     void trigger_frame_update();
 
     // Operaciones de estado de renderizado y viewport
@@ -96,5 +108,4 @@ public:
     void init_geometry_pipeline();
     void render_geometry(const void* p_vertices, size_t p_vertex_bytes, const uint32_t* p_indices, size_t p_index_count);
     [[nodiscard]] GLuint get_default_white_texture() const { return m_default_white_texture; }
-
 };

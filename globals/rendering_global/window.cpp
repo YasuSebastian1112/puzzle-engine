@@ -17,9 +17,11 @@
 #include "core/time/engine_time.h"
 #include "licenses_generated/logo.h"
 
-static WNDPROC g_original_wndproc = nullptr;
+static const wchar_t* PROP_ORIG_WNDPROC = L"PuzzleEngine_OrigWndProc";
 
 static LRESULT CALLBACK custom_borderless_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    WNDPROC orig_proc = reinterpret_cast<WNDPROC>(GetPropW(hwnd, PROP_ORIG_WNDPROC));
+
     switch (msg) {
         case WM_NCCALCSIZE: {
             if (wparam == TRUE) {
@@ -34,50 +36,44 @@ static LRESULT CALLBACK custom_borderless_wndproc(HWND hwnd, UINT msg, WPARAM wp
             break;
         }
 
-        // Se envía al maximizar o restaurar la ventana (ej. Win + Flecha Arriba)
         case WM_SYSCOMMAND: {
-            LRESULT res = CallWindowProc(g_original_wndproc, hwnd, msg, wparam, lparam);
-            WPARAM cmd = wparam & 0xFFF0;
-            if (cmd == SC_MAXIMIZE || cmd == SC_RESTORE) {
-                SystemInfo::trim_memory();
+            if (orig_proc) {
+                return CallWindowProc(orig_proc, hwnd, msg, wparam, lparam);
             }
-            return res;
+            break;
         }
     }
 
-    return CallWindowProc(g_original_wndproc, hwnd, msg, wparam, lparam);
+    if (orig_proc) {
+        return CallWindowProc(orig_proc, hwnd, msg, wparam, lparam);
+    }
+    return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 #endif
 
 void Window::enable_native_windows_snap(void* p_native_window_handle) {
 #if defined(_WIN32)
     HWND hwnd = static_cast<HWND>(p_native_window_handle);
-    if (!hwnd) return;
-
-    // Estilos requeridos para que DWM registre Snap Assist (Win + Flechas) y animaciones
-    LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
-    style |= (WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP);
-    style &= ~WS_CAPTION;
-    SetWindowLongPtr(hwnd, GWL_STYLE, style);
-
-    //Subclasificar la ventana de GLFW para interceptar WM_NCCALCSIZE
-    if (!g_original_wndproc) {
-        g_original_wndproc = reinterpret_cast<WNDPROC>(
-            SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(custom_borderless_wndproc))
-        );
-    }
-
-    // Forzar el recálculo total del marco
-    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    OSWindows::enable_borderless_snap(hwnd);
 #endif
+}
+
+void Window::disable_native_windows_snap(void* p_native_window_handle) {
+    // Ya se encarga OSWindows::remove_window_hooks en RenderingDevice::destroy_window()
 }
 
 Window::Window() : m_geometry(&rendering_device) {}
 
 Window::~Window() {
+    // Desvincular cualquier callback de renderizado en el dispositivo gráfico para evitar punteros huérfanos
+    rendering_device.set_render_callback(nullptr);
+
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (win) {
+#if defined(_WIN32)
+        HWND hwnd = glfwGetWin32Window(win);
+        disable_native_windows_snap(hwnd);
+#endif
         if (m_cursor_arrow)   glfwDestroyCursor(m_cursor_arrow);
         if (m_cursor_hresize) glfwDestroyCursor(m_cursor_hresize);
         if (m_cursor_vresize) glfwDestroyCursor(m_cursor_vresize);
@@ -97,12 +93,17 @@ Window::~Window() {
 bool Window::initialize(const String& p_title, const Size2i& p_size, const Point2i& p_pos, Type p_type) {
     title = p_title;
     type = p_type;
-    size = p_size;
     position = p_pos;
-    m_saved_windowed_pos = p_pos;
-    m_saved_windowed_size = p_size;
 
-    if (!rendering_device.create_window(p_title, p_size, p_pos)) {
+    // Garantizar que la ventana física reserve el espacio de la barra si es de tipo Editor
+    int title_padding = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
+    Size2i physical_window_size(p_size.width, p_size.height + title_padding);
+
+    size = physical_window_size;
+    m_saved_windowed_pos = p_pos;
+    m_saved_windowed_size = physical_window_size;
+
+    if (!rendering_device.create_window(p_title, physical_window_size, p_pos)) {
         return false;
     }
 
@@ -114,19 +115,63 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
         m_cursor_nesw    = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
         m_cursor_nwse    = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
 
+        // Único propietario del UserPointer de GLFW: evita colisiones de tipos entre Window y RenderingDevice
+        glfwSetWindowUserPointer(win, this);
+
+        // Sincroniza el framebuffer y los viewports cuando el SO cambia el tamaño de la ventana
+        glfwSetFramebufferSizeCallback(win, [](GLFWwindow* p_win, int width, int height) {
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
+            if (!self) return;
+
+            if (width > 0 && height > 0) {
+                self->size = Size2i(width, height);
+                self->rendering_device.set_screen_size(Size2i(width, height));
+                self->rendering_device.set_viewport(Point2i(0, 0), Size2i(width, height));
+                self->update_viewports(width, height);
+            }
+        });
+
+        // Repintado durante redimensionado o eventos modales
+        glfwSetWindowRefreshCallback(win, [](GLFWwindow* p_win) {
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
+            if (!self) return;
+
+            self->rendering_device.trigger_frame_update();
+        });
+
+        // Sincroniza el estado al restaurar la ventana desde la barra de tareas tras haber sido minimizada
+        glfwSetWindowIconifyCallback(win, [](GLFWwindow* p_win, int p_iconified) {
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
+            if (!self) return;
+
+            if (p_iconified) {
+                self->current_mode = Mode::Minimized;
+            } else {
+                int is_max = glfwGetWindowAttrib(p_win, GLFW_MAXIMIZED);
+                self->current_mode = is_max ? Mode::Maximized : Mode::Windowed;
+            }
+        });
+
+        // Sincroniza el estado cuando la ventana se maximiza o restaura mediante el sistema operativo (Win + Flechas, etc.)
+        glfwSetWindowMaximizeCallback(win, [](GLFWwindow* p_win, int p_maximized) {
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
+            if (!self) return;
+
+            self->current_mode = p_maximized ? Mode::Maximized : Mode::Windowed;
+        });
+
 #if defined(_WIN32)
         HWND hwnd = glfwGetWin32Window(win);
         enable_native_windows_snap(hwnd);
 #endif
     }
 
-#if defined(_WIN32)
-    OSWindows::trim_memory();
-#endif
-
     if (type == Type::Editor) {
         set_icon_from_memory(EmbeddedAssets::PUZZLE_LOGO_PNG, EmbeddedAssets::PUZZLE_LOGO_PNG_SIZE);
     }
+
+    // Configuración inicial de los límites geométricos de cada Viewport
+    update_viewports(physical_window_size.width, physical_window_size.height);
 
     return true;
 }
@@ -192,6 +237,7 @@ void Window::swap_buffers() {
 }
 
 void Window::clear(const Color& p_color) {
+    rendering_device.set_scissor_enabled(false);
     rendering_device.set_clear_color(p_color);
     rendering_device.clear_buffers(true, true, true);
 }
@@ -206,11 +252,23 @@ Point2i Window::get_position() const {
 }
 
 void Window::set_size(const Size2i& p_size) {
-    size = p_size;
-    rendering_device.set_window_size(p_size);
+    // Si la ventana requiere barra de título, agregamos su compensación vertical al SO
+    int title_padding = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
+    Size2i physical_size(p_size.width, p_size.height + title_padding);
+    size = physical_size;
+    rendering_device.set_window_size(physical_size);
+    update_viewports(physical_size.width, physical_size.height);
 }
 
 Size2i Window::get_size() const {
+    // Retorna estrictamente el tamaño del lienzo de renderizado disponible para el juego
+    Size2i physical_size = rendering_device.get_window_size();
+    int title_padding = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
+    int game_h = physical_size.height - title_padding;
+    return Size2i(physical_size.width, game_h > 0 ? game_h : 0);
+}
+
+Size2i Window::get_os_window_size() const {
     return rendering_device.get_window_size();
 }
 
@@ -224,6 +282,10 @@ void Window::set_mode(Mode p_mode) {
 
     if (current_mode == p_mode) return;
 
+    // Cancelar estados activos de arrastre o redimensionado antes de cambiar de modo
+    m_is_dragging = false;
+    m_resize_direction = ResizeDirection::None;
+
     // Resguardar posición de ventana previa al cambio a modos de pantalla completa o maximizado
     if (current_mode == Mode::Windowed) {
         glfwGetWindowPos(win, &m_saved_windowed_pos.x, &m_saved_windowed_pos.y);
@@ -236,10 +298,20 @@ void Window::set_mode(Mode p_mode) {
         case Mode::Windowed: {
             glfwSetWindowMonitor(win, nullptr, m_saved_windowed_pos.x, m_saved_windowed_pos.y,
                                  m_saved_windowed_size.width, m_saved_windowed_size.height, 0);
+            update_viewports(m_saved_windowed_size.width, m_saved_windowed_size.height);
             break;
         }
         case Mode::Minimized: {
+#if defined(_WIN32)
+            HWND hwnd = glfwGetWin32Window(win);
+            if (hwnd) {
+                ShowWindow(hwnd, SW_MINIMIZE);
+            } else {
+                glfwIconifyWindow(win);
+            }
+#else
             glfwIconifyWindow(win);
+#endif
             break;
         }
         case Mode::Maximized: {
@@ -248,6 +320,7 @@ void Window::set_mode(Mode p_mode) {
                 int mx, my, mw, mh;
                 glfwGetMonitorWorkarea(monitor, &mx, &my, &mw, &mh);
                 glfwSetWindowMonitor(win, nullptr, mx, my, mw, mh, 0);
+                update_viewports(mw, mh);
             }
             break;
         }
@@ -258,6 +331,7 @@ void Window::set_mode(Mode p_mode) {
                 const GLFWvidmode* vm = glfwGetVideoMode(monitor);
                 if (vm) {
                     glfwSetWindowMonitor(win, nullptr, 0, 0, vm->width, vm->height, 0);
+                    update_viewports(vm->width, vm->height);
                 }
             }
             break;
@@ -269,13 +343,12 @@ void Window::set_mode(Mode p_mode) {
                 const GLFWvidmode* vm = glfwGetVideoMode(monitor);
                 if (vm) {
                     glfwSetWindowMonitor(win, monitor, 0, 0, vm->width, vm->height, vm->refreshRate);
+                    update_viewports(vm->width, vm->height);
                 }
             }
             break;
         }
     }
-
-    rendering_device.trigger_frame_update();
 
 #if defined(_WIN32)
     OSWindows::trim_memory();
@@ -322,7 +395,10 @@ void Window::start_dragging() {
 void Window::update_dragging() {
     if (!m_is_dragging) return;
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (!win) return;
+    if (!win || current_mode != Mode::Windowed) {
+        m_is_dragging = false;
+        return;
+    }
 
     double cx, cy;
     glfwGetCursorPos(win, &cx, &cy);
@@ -355,7 +431,7 @@ void Window::stop_dragging() {
 Window::ResizeDirection Window::hit_test_resize_borders(const Point2i& p_cursor_pos, int p_border_thickness) const {
     if (current_mode != Mode::Windowed) return ResizeDirection::None;
 
-    Size2i sz = get_size();
+    Size2i sz = get_os_window_size();
     int dir = static_cast<int>(ResizeDirection::None);
 
     if (p_cursor_pos.x >= 0 && p_cursor_pos.x <= p_border_thickness) {
@@ -408,7 +484,10 @@ void Window::start_resizing(ResizeDirection p_dir) {
 void Window::update_resizing() {
     if (m_resize_direction == ResizeDirection::None) return;
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
-    if (!win) return;
+    if (!win || current_mode != Mode::Windowed) {
+        m_resize_direction = ResizeDirection::None;
+        return;
+    }
 
     double cx, cy;
     glfwGetCursorPos(win, &cx, &cy);
@@ -463,8 +542,7 @@ void Window::update_resizing() {
 
     glfwSetWindowPos(win, new_x, new_y);
     glfwSetWindowSize(win, new_w, new_h);
-
-    rendering_device.trigger_frame_update();
+    update_viewports(new_w, new_h);
 }
 
 void Window::stop_resizing() {
@@ -484,8 +562,10 @@ void Window::process_window_interaction() {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (!win) return;
 
-    Size2i win_sz = get_size();
-    constexpr float TITLE_BAR_HEIGHT = 28.0f;
+    Size2i win_sz = get_os_window_size();
+    if (win_sz.width <= 0 || win_sz.height <= 0) return;
+
+    constexpr float BAR_HEIGHT = static_cast<float>(TITLE_BAR_HEIGHT);
     constexpr float BTN_WIDTH = 34.0f;
 
     double mx, my;
@@ -497,17 +577,17 @@ void Window::process_window_interaction() {
     bool just_pressed = (mouse_left == GLFW_PRESS && prev_mouse_left == GLFW_RELEASE);
     prev_mouse_left = mouse_left;
 
-    Rect2 rect_close(static_cast<float>(win_sz.width) - BTN_WIDTH, 0.0f, BTN_WIDTH, TITLE_BAR_HEIGHT);
-    Rect2 rect_max(static_cast<float>(win_sz.width) - (BTN_WIDTH * 2.0f), 0.0f, BTN_WIDTH, TITLE_BAR_HEIGHT);
-    Rect2 rect_min(static_cast<float>(win_sz.width) - (BTN_WIDTH * 3.0f), 0.0f, BTN_WIDTH, TITLE_BAR_HEIGHT);
+    Rect2 rect_close(static_cast<float>(win_sz.width) - BTN_WIDTH, 0.0f, BTN_WIDTH, BAR_HEIGHT);
+    Rect2 rect_max(static_cast<float>(win_sz.width) - (BTN_WIDTH * 2.0f), 0.0f, BTN_WIDTH, BAR_HEIGHT);
+    Rect2 rect_min(static_cast<float>(win_sz.width) - (BTN_WIDTH * 3.0f), 0.0f, BTN_WIDTH, BAR_HEIGHT);
 
-    bool hover_close = (mx >= rect_close.position.x && mx <= rect_close.position.x + rect_close.size.width && my >= 0 && my <= TITLE_BAR_HEIGHT);
-    bool hover_max   = (mx >= rect_max.position.x && mx <= rect_max.position.x + rect_max.size.width && my >= 0 && my <= TITLE_BAR_HEIGHT);
-    bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= TITLE_BAR_HEIGHT);
+    bool hover_close = (mx >= rect_close.position.x && mx <= rect_close.position.x + rect_close.size.width && my >= 0 && my <= BAR_HEIGHT);
+    bool hover_max   = (mx >= rect_max.position.x && mx <= rect_max.position.x + rect_max.size.width && my >= 0 && my <= BAR_HEIGHT);
+    bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= BAR_HEIGHT);
 
     // Actualización de forma del cursor según cercanía a bordes
     if (m_resize_direction == ResizeDirection::None && !m_is_dragging) {
-        if (my > TITLE_BAR_HEIGHT) {
+        if (my > BAR_HEIGHT || type != Type::Editor) {
             auto hit_dir = hit_test_resize_borders(cursor_pos, 8);
             update_cursor_icon(hit_dir);
         } else {
@@ -515,26 +595,28 @@ void Window::process_window_interaction() {
         }
     }
 
-    // Procesamiento de clics y doble clic
+    // Procesamiento de clics y doble clic en la barra personalizada
     if (just_pressed) {
         if (!m_is_dragging && m_resize_direction == ResizeDirection::None) {
-            if (hover_close) {
-                close();
-            } else if (hover_max) {
-                toggle_maximize();
-            } else if (hover_min) {
-                minimize();
-            } else if (my <= TITLE_BAR_HEIGHT) {
-                double current_time = glfwGetTime();
-                double click_interval = current_time - m_last_titlebar_click_time;
-
-                // Doble clic sobre la barra de título para alternar maximizado
-                if (click_interval <= 0.28) {
+            if (type == Type::Editor && my <= BAR_HEIGHT) {
+                if (hover_close) {
+                    close();
+                } else if (hover_max) {
                     toggle_maximize();
-                    m_last_titlebar_click_time = 0.0;
+                } else if (hover_min) {
+                    minimize();
                 } else {
-                    m_last_titlebar_click_time = current_time;
-                    start_dragging();
+                    double current_time = glfwGetTime();
+                    double click_interval = current_time - m_last_titlebar_click_time;
+
+                    // Doble clic sobre la barra de título para alternar maximizado
+                    if (click_interval <= 0.28) {
+                        toggle_maximize();
+                        m_last_titlebar_click_time = 0.0;
+                    } else {
+                        m_last_titlebar_click_time = current_time;
+                        start_dragging();
+                    }
                 }
             } else {
                 auto dir = hit_test_resize_borders(cursor_pos, 8);
@@ -553,11 +635,14 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (!win) return;
 
-    Size2i win_sz = get_size();
+    Size2i win_sz = get_os_window_size();
+    if (win_sz.width < 150 || win_sz.height < TITLE_BAR_HEIGHT) {
+        return;
+    }
 
-    constexpr float TITLE_BAR_HEIGHT = 28.0f;
+    constexpr float BAR_HEIGHT = static_cast<float>(TITLE_BAR_HEIGHT);
     constexpr float BTN_WIDTH = 34.0f;
-    constexpr float BTN_HEIGHT = TITLE_BAR_HEIGHT;
+    constexpr float BTN_HEIGHT = BAR_HEIGHT;
 
     double mx, my;
     glfwGetCursorPos(win, &mx, &my);
@@ -571,23 +656,23 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= BTN_HEIGHT);
 
     // Fondo de la barra
-    p_geometry.draw_rect(Rect2(0, 0, static_cast<float>(win_sz.width), TITLE_BAR_HEIGHT), Color(0.10f, 0.10f, 0.13f, 1.0f), true);
+    p_geometry.draw_rect(Rect2(0, 0, static_cast<float>(win_sz.width), BAR_HEIGHT), Color(0.10f, 0.10f, 0.13f, 1.0f), true);
 
-    // Icono del motor en la esquina superior izquierda (18x18 px centrado verticalmente en la barra)
+    // Icono del motor en la esquina superior izquierda
     float icon_offset_x = 8.0f;
     if (m_icon_loaded) {
         constexpr float ICON_SIZE = 18.0f;
-        float icon_y = (TITLE_BAR_HEIGHT - ICON_SIZE) * 0.5f;
+        float icon_y = (BAR_HEIGHT - ICON_SIZE) * 0.5f;
         p_geometry.draw_texture(Rect2(icon_offset_x, icon_y, ICON_SIZE, ICON_SIZE), m_title_bar_icon);
         icon_offset_x += ICON_SIZE + 8.0f;
     }
 
-    // Texto del título desplazado para no encimarse con el icono
+    // Texto del título desplazado horizontalmente
     float text_x = icon_offset_x;
-    float text_y = (TITLE_BAR_HEIGHT - 8.0f) * 0.5f;
+    float text_y = (BAR_HEIGHT - 8.0f) * 0.5f;
     p_geometry.draw_text(Vector2(text_x, text_y), title, Color(0.85f, 0.85f, 0.90f, 1.0f), 1.0f);
 
-    // Botones con respuesta a selección del puntero
+    // Botones con respuesta interactiva
     Color bg_close = hover_close ? Color(0.88f, 0.18f, 0.18f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
     Color bg_max   = hover_max   ? Color(0.25f, 0.25f, 0.32f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
     Color bg_min   = hover_min   ? Color(0.25f, 0.25f, 0.32f, 1.0f) : Color(0.10f, 0.10f, 0.13f, 0.0f);
@@ -600,12 +685,12 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
 
     // Icono Minimizar (-)
     float min_cx = rect_min.position.x + (BTN_WIDTH * 0.5f);
-    float min_cy = TITLE_BAR_HEIGHT * 0.5f;
+    float min_cy = BAR_HEIGHT * 0.5f;
     p_geometry.draw_line(Vector2(min_cx - 4.5f, min_cy), Vector2(min_cx + 4.5f, min_cy), icon_color, 1.2f);
 
     // Icono Maximizar / Restaurar
     float max_cx = rect_max.position.x + (BTN_WIDTH * 0.5f);
-    float max_cy = TITLE_BAR_HEIGHT * 0.5f;
+    float max_cy = BAR_HEIGHT * 0.5f;
     if (current_mode != Mode::Maximized) {
         p_geometry.draw_rect(Rect2(max_cx - 4.5f, max_cy - 4.5f, 9.0f, 9.0f), icon_color, false);
     } else {
@@ -615,14 +700,68 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
 
     // Icono Cerrar (X)
     float close_cx = rect_close.position.x + (BTN_WIDTH * 0.5f);
-    float close_cy = TITLE_BAR_HEIGHT * 0.5f;
+    float close_cy = BAR_HEIGHT * 0.5f;
     p_geometry.draw_line(Vector2(close_cx - 4.0f, close_cy - 4.0f), Vector2(close_cx + 4.0f, close_cy + 4.0f), icon_color, 1.2f);
     p_geometry.draw_line(Vector2(close_cx + 4.0f, close_cy - 4.0f), Vector2(close_cx - 4.0f, close_cy + 4.0f), icon_color, 1.2f);
 }
 
 // -------------------------------------------------------------------------
-// BUCLE DE EVENTOS Y DISPATCH
+// GESTIÓN DE VIEWPORTS Y DESPACHO DE RENDERIZADO
 // -------------------------------------------------------------------------
+
+void Window::update_viewports(int p_fb_w, int p_fb_h) {
+    if (p_fb_w <= 0 || p_fb_h <= 0) return;
+
+    float title_h = (type == Type::Editor) ? static_cast<float>(TITLE_BAR_HEIGHT) : 0.0f;
+    float client_h = static_cast<float>(p_fb_h) - title_h;
+    if (client_h < 1.0f) client_h = 1.0f;
+    float width = static_cast<float>(p_fb_w);
+
+    // Barra de título: franja superior
+    m_title_bar_viewport.set_screen_rect(Rect2(
+        Vector2(0.0f, 0.0f),
+        Vector2(width, title_h)
+    ));
+
+    // Espacio de juego/escena: comienza exactamente debajo de la barra
+    m_game_viewport.set_screen_rect(Rect2(
+        Vector2(0.0f, title_h),
+        Vector2(width, client_h)
+    ));
+}
+
+void Window::render_frame_passes(const FrameCallback& p_frame_callback, int p_fb_w, int p_fb_h) {
+    int min_required_h = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
+
+    // Evitar llamadas anidadas o con dimensiones colapsadas
+    if (m_is_rendering || p_fb_w <= 0 || p_fb_h <= min_required_h) {
+        return;
+    }
+
+    m_is_rendering = true;
+
+    clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
+
+    // Pase 1: Escena / Juego dentro de su propio viewport aislado
+    m_game_viewport.bind(&rendering_device, p_fb_h);
+    m_geometry.begin();
+    if (p_frame_callback) {
+        p_frame_callback(Time::get_process_delta());
+    }
+    m_geometry.flush();
+    m_game_viewport.unbind();
+
+    // Pase 2: Barra de título (modo Editor)
+    if (type == Type::Editor) {
+        m_title_bar_viewport.bind(&rendering_device, p_fb_h);
+        m_geometry.begin();
+        draw_title_bar(m_geometry);
+        m_geometry.flush();
+        m_title_bar_viewport.unbind();
+    }
+
+    m_is_rendering = false;
+}
 
 void Window::run(FrameCallback p_frame_callback) {
 #if defined(_WIN32)
@@ -633,55 +772,93 @@ void Window::run(FrameCallback p_frame_callback) {
     // Inicializar el reloj del motor
     Time::init();
 
-    // Registra el callback de renderizado en el dispositivo gráfico para soportar
-    // repintado continuo durante eventos modales del SO (arrastre/redimensionado)
-    rendering_device.set_render_callback([this, &p_frame_callback]() {
-        clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
-        m_geometry.begin();
-        draw_title_bar(m_geometry);
+    GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
+    int min_required_h = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
 
-        if (p_frame_callback) {
-            p_frame_callback(Time::get_process_delta());
+    // Sincronización de dimensiones del framebuffer físico de la ventana
+    auto sync_framebuffer_and_viewports = [this, win](int& w, int& h) {
+        if (win) {
+            glfwGetFramebufferSize(win, &w, &h);
+        } else {
+            w = size.width;
+            h = size.height;
+        }
+        if (w > 0 && h > 0) {
+            size = Size2i(w, h);
+            rendering_device.set_screen_size(Size2i(w, h));
+            update_viewports(w, h);
+        }
+    };
+
+    // Callback de renderizado continuo para eventos modales del SO (arrastre / resize)
+    rendering_device.set_render_callback([this, sync_framebuffer_and_viewports, &p_frame_callback, min_required_h]() {
+        int fb_w = 0, fb_h = 0;
+        sync_framebuffer_and_viewports(fb_w, fb_h);
+
+        // Prevenir división por cero o viewports degenerados al restaurar
+        if (fb_w <= 0 || fb_h <= min_required_h || current_mode == Mode::Minimized) {
+            return;
         }
 
-        m_geometry.flush();
+        render_frame_passes(p_frame_callback, fb_w, fb_h);
     });
 
     // Contador de cuadros iniciales para diferir el vaciado del Working Set
     uint32_t startup_warmup_frames = 0;
 
+    // Bucle principal de ejecución del motor
     while (!should_close()) {
-        // Actualiza el paso de tiempo global del motor
         Time::update();
 
-        // Procesa la cola de mensajes del sistema operativo (teclado, ratón, ventana)
         poll_events();
 
-        // Control nativo de interacción (hit-testing, arrastre y redimensionado)
-        process_window_interaction();
-
-        if (m_is_dragging) {
-            update_dragging();
-        } else if (m_resize_direction != ResizeDirection::None) {
-            update_resizing();
+        if (should_close()) {
+            break;
         }
 
-        // Limpieza y emisión de geometrías de la ventana
-        clear(Color(0.08f, 0.08f, 0.10f, 1.0f));
-        m_geometry.begin();
+        int fb_w = 0, fb_h = 0;
+        sync_framebuffer_and_viewports(fb_w, fb_h);
 
-        // Barra de título del motor encapsulada (fondo, icono, título y botones)
-        draw_title_bar(m_geometry);
-
-        // Ejecuta la lógica del juego o aplicación pasando el delta de Time
-        if (p_frame_callback) {
-            p_frame_callback(Time::get_process_delta());
+        // Detección nativa de ventana iconificada (evita colapsar en el driver durante swapchain al restaurar)
+        bool is_minimized_native = (current_mode == Mode::Minimized);
+#if defined(_WIN32)
+        HWND hwnd = win ? glfwGetWin32Window(win) : nullptr;
+        if (hwnd && IsIconic(hwnd) != 0) {
+            is_minimized_native = true;
         }
+#else
+        if (win && glfwGetWindowAttrib(win, GLFW_ICONIFIED) != 0) {
+            is_minimized_native = true;
+        }
+#endif
 
-        m_geometry.flush();
+        // Si la ventana no está iconificada y tiene área de dibujado, procesar interacción y render
+        if (!is_minimized_native && fb_w > 0 && fb_h > min_required_h) {
+            process_window_interaction();
 
-        // Presenta el fotograma en pantalla intercambiando los búferes de color
-        swap_buffers();
+            if (m_is_dragging) {
+                update_dragging();
+            } else if (m_resize_direction != ResizeDirection::None) {
+                update_resizing();
+            }
+
+            // Verificar si durante process_window_interaction() se cerró o minimizó la ventana
+            bool minimized_after_input = (current_mode == Mode::Minimized);
+#if defined(_WIN32)
+            if (hwnd && IsIconic(hwnd) != 0) {
+                minimized_after_input = true;
+            }
+#endif
+            if (!should_close() && !minimized_after_input) {
+                // Re-sincronizar dimensiones en caso de haber maximizado/restaurado o redimensionado en este mismo frame
+                sync_framebuffer_and_viewports(fb_w, fb_h);
+
+                if (fb_w > 0 && fb_h > min_required_h) {
+                    render_frame_passes(p_frame_callback, fb_w, fb_h);
+                    swap_buffers();
+                }
+            }
+        }
 
 #if defined(_WIN32)
         // Purgar páginas transitorias de arranque (DLLs, JIT de shaders, buffers de DWM)
@@ -693,11 +870,10 @@ void Window::run(FrameCallback p_frame_callback) {
         }
 #endif
 
-        // Duerme el hilo el tiempo restante del frame para clavar los FPS objetivo
         Time::delay_to_target_fps();
     }
 
-    // Limpia el puntero del callback para evitar accesos colgantes al cerrar
+    // Desregistrar el callback para evitar referencias colgantes al cerrar
     rendering_device.set_render_callback(nullptr);
 
 #if defined(_WIN32)

@@ -1,3 +1,10 @@
+// ========================================================================= //
+// PUZZLE ENGINE - 2D/3D GAME ENGINE
+// ------------------------------------------------------------------------- //
+// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
+// All rights reserved.
+// ========================================================================= //
+
 #include "classes/spatial_2d.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
 
@@ -44,9 +51,19 @@ void Spatial2D::propagate_draw(RenderingGeometry* p_geometry) {
     _draw(p_geometry);
 
     for (size_t i = 0; i < get_child_count(); ++i) {
-        Spatial2D* child_spatial = Object::cast_to<Spatial2D>(get_child(i));
+        Node* child = get_child(i);
+        Spatial2D* child_spatial = Object::cast_to<Spatial2D>(child);
+        
         if (child_spatial) {
             child_spatial->propagate_draw(p_geometry);
+        } else {
+            // Si es un Node simple, busca si tiene hijos Spatial2D más abajo
+            for (size_t j = 0; j < child->get_child_count(); ++j) {
+                Spatial2D* sub_spatial = Object::cast_to<Spatial2D>(child->get_child(j));
+                if (sub_spatial) {
+                    sub_spatial->propagate_draw(p_geometry);
+                }
+            }
         }
     }
 }

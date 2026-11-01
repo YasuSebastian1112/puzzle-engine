@@ -12,8 +12,11 @@
 #include "core/mathematics/math_2d.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
 #include "globals/rendering_global/device/rendering_texture.h"
+#include "core/viewport.h"
 
 typedef struct GLFWcursor GLFWcursor;
+
+constexpr int TITLE_BAR_HEIGHT = 32;
 
 class Window : public Object {
     CLASS_TYPE(Window, Object);
@@ -53,6 +56,11 @@ private:
     RenderingGeometry m_geometry;
     RenderingTexture m_title_bar_icon;
     bool m_icon_loaded = false;
+    bool m_is_rendering = false;
+
+    // Viewports internos encapsulados
+    Viewport m_game_viewport;
+    Viewport m_title_bar_viewport;
 
     Type type = Type::Custom;
     Mode current_mode = Mode::Windowed;
@@ -89,7 +97,7 @@ private:
     GLFWcursor* m_cursor_nesw = nullptr;
     GLFWcursor* m_cursor_nwse = nullptr;
 
-    // Métodos internos de control
+    // Métodos internos de control y partición de pantalla
     void start_dragging();
     void update_dragging();
     void stop_dragging();
@@ -99,8 +107,12 @@ private:
     void update_resizing();
     void stop_resizing();
     void update_cursor_icon(ResizeDirection p_dir);
-
+    void update_viewports(int p_fb_w, int p_fb_h);
     void enable_native_windows_snap(void* p_native_window_handle);
+    void disable_native_windows_snap(void* p_native_window_handle);
+
+    // Despacho de pases de renderizado independientes (escena y barra de título)
+    void render_frame_passes(const FrameCallback& p_frame_callback, int p_fb_w, int p_fb_h);
 
 public:
     Window();
@@ -113,8 +125,12 @@ public:
     void set_position(const Point2i& p_pos);
     Point2i get_position() const;
 
+    // Métodos de resolución pública (desacoplados: siempre retornan/configuran el espacio de trabajo del juego)
     void set_size(const Size2i& p_size);
     Size2i get_size() const;
+
+    // Retorna las dimensiones totales de la ventana física en el sistema operativo
+    Size2i get_os_window_size() const;
 
     // Gestión de modos de ventana
     void set_mode(Mode p_mode);
@@ -133,11 +149,8 @@ public:
     const String& get_title() const { return title; }
     void set_title(const String& p_title);
     bool set_icon(const String& p_filepath);
-    // Asigna el icono desde un buffer en memoria (PNG codificado)
     bool set_icon_from_memory(const uint8_t* p_buffer, size_t p_size);
-    // Limpia o remueve el icono actual
     void clear_icon();
-
 
     void process_window_interaction();
     void draw_title_bar(RenderingGeometry& p_geometry);
