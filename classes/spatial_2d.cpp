@@ -7,6 +7,7 @@
 
 #include "classes/spatial_2d.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
+#include "core/class_db.h"
 
 Spatial2D::Spatial2D(const String& node_name)
     : Node(node_name), visible(true), z_index(0), modulate(1.0f, 1.0f, 1.0f, 1.0f) {
@@ -66,4 +67,13 @@ void Spatial2D::propagate_draw(RenderingGeometry* p_geometry) {
             }
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+// VINCULACIÓN AL SISTEMA DE REFLEXIÓN (ClassDB)
+// -----------------------------------------------------------------------------
+void Spatial2D::_bind_methods() {
+    ClassDB::add_property("visible",  &Spatial2D::set_visible,  &Spatial2D::is_visible);
+    ClassDB::add_property("z_index",  &Spatial2D::set_z_index,  &Spatial2D::get_z_index);
+    ClassDB::add_property("modulate", &Spatial2D::set_modulate, &Spatial2D::get_modulate);
 }

@@ -7,6 +7,7 @@
 
 #include "classes/2d/node_2d.h"
 #include "core/mathematics/math_functions.h"
+#include "core/class_db.h"
 
 Node2D::Node2D(const String& node_name)
     : Spatial2D(node_name), position(0.0f, 0.0f), rotation(0.0f), scale(1.0f, 1.0f), transform_dirty(true) {
@@ -90,4 +91,17 @@ Vector2 Node2D::to_global(const Vector2& p_local_point) const {
 void Node2D::look_at(const Vector2& p_target) {
     Vector2 diff = p_target - get_global_position();
     set_rotation(Math::atan2(diff.y, diff.x));
+}
+
+// -----------------------------------------------------------------------------
+// VINCULACIÓN AL SISTEMA DE REFLEXIÓN (ClassDB)
+// -----------------------------------------------------------------------------
+void Node2D::_bind_methods() {
+    // Transformación Local
+    ClassDB::add_property("position", &Node2D::set_position, &Node2D::get_position);
+    ClassDB::add_property("rotation", &Node2D::set_rotation, &Node2D::get_rotation);
+    ClassDB::add_property("scale",    &Node2D::set_scale,    &Node2D::get_scale);
+
+    // Transformación Global
+    ClassDB::add_property("global_position", &Node2D::set_global_position, &Node2D::get_global_position);
 }

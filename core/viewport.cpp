@@ -7,6 +7,7 @@
 
 #include "core/viewport.h"
 #include "globals/rendering_global/device/rendering_device.h"
+#include "classes/2d/camera_2d.h"
 #include <glad/glad.h>
 
 void Viewport::bind(RenderingDevice* p_device, int p_total_window_height) {
@@ -46,4 +47,18 @@ void Viewport::unbind(RenderingDevice* p_device) {
     } else {
         glDisable(GL_SCISSOR_TEST);
     }
+}
+
+Vector2 Viewport::to_world_coordinates(const Vector2& p_local_pos) const {
+    if (m_current_camera && m_current_camera->is_enabled()) {
+        return m_current_camera->screen_to_world(p_local_pos, get_size());
+    }
+    return p_local_pos;
+}
+
+Vector2 Viewport::to_local_coordinates(const Vector2& p_world_pos) const {
+    if (m_current_camera && m_current_camera->is_enabled()) {
+        return m_current_camera->world_to_screen(p_world_pos, get_size());
+    }
+    return p_world_pos;
 }

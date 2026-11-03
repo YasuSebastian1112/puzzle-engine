@@ -45,4 +45,5 @@ private:
     Vector2 offset = Vector2(0.0f, 0.0f);
     bool flip_h = false;
     bool flip_v = false;
+    
 };

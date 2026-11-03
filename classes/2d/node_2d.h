@@ -64,4 +64,5 @@ private:
     // Caché mutable para evitar llamadas trigonométricas repetitivas
     mutable Transform2D local_transform;
     mutable bool transform_dirty = true;
+    
 };

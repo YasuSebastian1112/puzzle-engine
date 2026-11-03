@@ -1,13 +1,19 @@
-// ========================================================================= //
-// PUZZLE ENGINE - 2D/3D GAME ENGINE
-// ------------------------------------------------------------------------- //
-// Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
-// All rights reserved.
-// ========================================================================= //
-
 #include "object.h"
+#include "class_db.h"
 #include "core/scene_tree.h"
 #include <iostream>
+
+void Object::_bind_methods() {
+    // La raíz Object no expone propiedades específicas por defecto
+}
+
+bool Object::set(const std::string& p_property, const std::vector<std::string>& p_args) {
+    return ClassDB::get_singleton().set_property(this, get_class_name(), p_property, p_args);
+}
+
+std::string Object::get(const std::string& p_property) const {
+    return ClassDB::get_singleton().get_property(this, get_class_name(), p_property);
+}
 
 Object::Object() {
     instance_id = next_instance_id++;
