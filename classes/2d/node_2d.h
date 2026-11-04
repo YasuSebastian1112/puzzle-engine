@@ -4,6 +4,7 @@
 // Copyright (c) 2026 Sebastian Alonso Sanchez (Billilol / Yatagarasu)
 // All rights reserved.
 // ========================================================================= //
+
 #pragma once
 
 #include "classes/spatial_2d.h"
@@ -22,6 +23,10 @@ public:
 
     void set_rotation(float p_radians);
     float get_rotation() const { return rotation; }
+
+    // Soporte para grados (grados sexagesimales directos para el CLI y el inspector)
+    void set_rotation_degrees(float p_degrees);
+    float get_rotation_degrees() const;
 
     void set_scale(const Vector2& p_scale);
     Vector2 get_scale() const { return scale; }
@@ -56,6 +61,8 @@ public:
 
 private:
     void _update_transform() const;
+    // Propagación recursiva para invalidar la caché de los hijos cuando el padre rota o se traslada
+    void _propagate_transform_changed();
 
     Vector2 position = Vector2(0.0f, 0.0f);
     float rotation = 0.0f; // En radianes

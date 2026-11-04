@@ -259,3 +259,41 @@ void RenderingGeometry::draw_texture(const Rect2& p_rect, uint32_t p_texture_id,
 void RenderingGeometry::draw_texture(const Rect2& p_rect, const RenderingTexture& p_texture, const Color& p_modulate, const Rect2& p_src_rect) {
     draw_texture(p_rect, p_texture.get_id(), p_modulate, p_src_rect);
 }
+
+void RenderingGeometry::draw_quad_textured(
+    const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
+    const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
+    const RenderingTexture& p_texture,
+    const Color& p_color
+) {
+    // Si la textura solicitada cambia respecto a lo que hay en el lote actual,
+    // se vacía el buffer para no pintar geometrías previas con la textura nueva
+    flush();
+
+    // Enlazar la textura en el slot 0
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, p_texture.get_id());
+
+    check_batch_overflow(4, 6);
+
+    uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
+
+    batched_vertices.push_back({ v0, p_color, uv0 });
+    batched_vertices.push_back({ v1, p_color, uv1 });
+    batched_vertices.push_back({ v2, p_color, uv2 });
+    batched_vertices.push_back({ v3, p_color, uv3 });
+
+    batched_indices.push_back(base_index + 0);
+    batched_indices.push_back(base_index + 1);
+    batched_indices.push_back(base_index + 2);
+
+    batched_indices.push_back(base_index + 2);
+    batched_indices.push_back(base_index + 3);
+    batched_indices.push_back(base_index + 0);
+
+    // Vaciar este quad con su textura enlazada
+    flush();
+
+    // Restaurar la textura blanca para que las llamadas regulares de draw_rect/draw_line sigan funcionando
+    glBindTexture(GL_TEXTURE_2D, rendering_device->get_default_white_texture());
+}

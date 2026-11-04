@@ -16,6 +16,7 @@
 #include "platform/windows/os_windows.h"
 #include "core/time/engine_time.h"
 #include "licenses_generated/logo.h"
+#include "globals/input/input.h"
 
 static const wchar_t* PROP_ORIG_WNDPROC = L"PuzzleEngine_OrigWndProc";
 
@@ -109,11 +110,11 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
 
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (win) {
-        m_cursor_arrow   = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+        m_cursor_arrow = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
         m_cursor_hresize = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
         m_cursor_vresize = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
-        m_cursor_nesw    = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-        m_cursor_nwse    = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+        m_cursor_nesw = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
+        m_cursor_nwse = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
 
         // Único propietario del UserPointer de GLFW: evita colisiones de tipos entre Window y RenderingDevice
         glfwSetWindowUserPointer(win, this);
@@ -158,6 +159,32 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
             if (!self) return;
 
             self->current_mode = p_maximized ? Mode::Maximized : Mode::Windowed;
+        });
+
+        // --- SISTEMA DE ENTRADA (INPUT) INTEGRADO ---
+
+        // Corrección de coordenadas del cursor: compensa el desfase de la barra de título personalizada
+        glfwSetCursorPosCallback(win, [](GLFWwindow* p_win, double xpos, double ypos) {
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
+            if (!self) return;
+
+            // Resta el alto de la barra superior para alinear el origen (Y=0) con el lienzo de trabajo
+            int title_offset = (self->type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
+            double local_y = ypos - static_cast<double>(title_offset);
+
+            Input::on_mouse_moved_event(xpos, local_y);
+        });
+
+        glfwSetMouseButtonCallback(win, [](GLFWwindow*, int button, int action, int mods) {
+            Input::on_mouse_button_event(button, action);
+        });
+
+        glfwSetScrollCallback(win, [](GLFWwindow*, double xoffset, double yoffset) {
+            Input::on_mouse_scrolled_event(xoffset, yoffset);
+        });
+
+        glfwSetKeyCallback(win, [](GLFWwindow*, int key, int scancode, int action, int mods) {
+            Input::on_key_event(key, action);
         });
 
 #if defined(_WIN32)

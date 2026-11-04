@@ -1,4 +1,4 @@
-
+#include <iostream>
 
 // Plataforma y Ventana
 #include "globals/rendering_global/window.h"
@@ -6,12 +6,16 @@
 // Reflexión y Registro de Clases
 #include "classes/register_class_types.h"
 
-// Nodos y Recursos
+// Nodos 2D y Recursos
 #include "classes/node.h"
 #include "classes/2d/node_2d.h"
 #include "classes/2d/camera_2d.h"
 #include "classes/2d/sprite_2d.h"
 #include "classes/resources/texture_2d.h"
+
+// Interfaz (UI) y Entrada
+#include "classes/interface/button.h"
+#include "globals/input/input.h"
 
 // Consola Interactiva
 #include "script/puzzle_cli/engine_console.h"
@@ -20,15 +24,16 @@ int main() {
     // 1. Inicializar ClassDB y tipos centrales del motor
     register_core_classes();
 
-    // 2. Inicializar ventana y contexto gráfico
+    // 2. Inicializar ventana y subsistema gráfico (conecta Input automáticamente)
     Window window;
-    if (!window.initialize("Puzzle Engine - Rueditas del CLI UwU", Size2i(1280, 720), Point2i(100, 100), Window::Type::Editor)) {
+    if (!window.initialize("Puzzle Engine - Interface & Input", Size2i(1280, 720), Point2i(100, 100), Window::Type::Editor)) {
         return -1;
     }
 
     // 3. Montar el árbol de escena (Scene Tree)
     Node root("root");
 
+    // Árbol de Mundo 2D (afectado por la cámara)
     Node2D world("Node2D");
     root.add_child(&world);
 
@@ -46,6 +51,25 @@ int main() {
     mario.set_position(Vector2(0.0f, 0.0f));
     world.add_child(&mario);
 
+    // Árbol de Interfaz de Usuario (UI fija en coordenadas de pantalla)
+    Interface ui_root("UI");
+    root.add_child(&ui_root);
+
+    Button my_button("TestButton");
+    my_button.set_position(Vector2(30.0f, 30.0f));
+    my_button.set_size(Vector2(160.0f, 40.0f));
+    my_button.set_text("Toggle Flip Mario");
+
+    // Callback al hacer clic en el botón
+    my_button.set_on_pressed([&mario]() {
+        bool current_flip = mario.is_flipped_h();
+        mario.set_flip_h(!current_flip);
+        std::cout << "\033[38;2;74;222;40m[UI] Click detectado en el boton! Mario flip_h = " 
+                  << (!current_flip ? "true" : "false") << "\033[0m\n";
+    });
+
+    ui_root.add_child(&my_button);
+
     // Inicializar nodos en cascada
     root.propagate_ready();
 
@@ -54,42 +78,46 @@ int main() {
     console.set_scene_root(&root);
     console.start();
 
-    GLFWwindow* native_win = static_cast<GLFWwindow*>(window.get_rendering_device().get_native_handle());
-
     // 5. Bucle principal
-window.run([&](double delta) {
-        // Despachar comandos de la consola en el hilo de render
+    window.run([&](double delta) {
+        // Actualizar estados de entrada al inicio de cada fotograma
+        Input::update();
+
+        // Despachar comandos de la terminal en el hilo de render
         console.process_commands();
 
         RenderingGeometry& geom = window.get_rendering_geometry();
         Size2i vp_size = window.get_size();
 
-        // Aplicar WASD solo si hay teclas presionadas
+        // --- Navegación de Cámara con Input nativo ---
         float move_speed = 400.0f * static_cast<float>(delta);
         Vector2 input_dir(0.0f, 0.0f);
 
-        if (glfwGetKey(native_win, GLFW_KEY_D) == GLFW_PRESS) input_dir.x += 1.0f;
-        if (glfwGetKey(native_win, GLFW_KEY_A) == GLFW_PRESS) input_dir.x -= 1.0f;
-        if (glfwGetKey(native_win, GLFW_KEY_S) == GLFW_PRESS) input_dir.y += 1.0f;
-        if (glfwGetKey(native_win, GLFW_KEY_W) == GLFW_PRESS) input_dir.y -= 1.0f;
+        if (Input::is_key_pressed(Key::D)) input_dir.x += 1.0f;
+        if (Input::is_key_pressed(Key::A)) input_dir.x -= 1.0f;
+        if (Input::is_key_pressed(Key::S)) input_dir.y += 1.0f;
+        if (Input::is_key_pressed(Key::W)) input_dir.y -= 1.0f;
 
         if (input_dir.x != 0.0f || input_dir.y != 0.0f) {
             camera.translate(input_dir.normalized() * move_speed);
         }
 
-        // Zoom solo si presionas Q o E
+        // --- Controles de Zoom ---
         float zoom_speed = 1.0f * static_cast<float>(delta);
-        if (glfwGetKey(native_win, GLFW_KEY_E) == GLFW_PRESS) {
+        if (Input::is_key_pressed(Key::E)) {
             camera.set_zoom(camera.get_zoom() + Vector2(zoom_speed, zoom_speed));
         }
-        if (glfwGetKey(native_win, GLFW_KEY_Q) == GLFW_PRESS) {
+        if (Input::is_key_pressed(Key::Q)) {
             camera.set_zoom(camera.get_zoom() - Vector2(zoom_speed, zoom_speed));
         }
 
+        // Actualizar lógica de cámara
         camera.update_camera(delta, vp_size);
+
+        // Propagar proceso lógico a través del árbol (ejecuta Button::_process)
         root.propagate_process(static_cast<float>(delta));
 
-        // Proyectar el sprite con respecto a la cámara
+        // --- Renderizado 1: Mundo 2D proyectado con cámara ---
         Vector2 world_pos = mario.get_position();
         Vector2 base_scale = mario.get_scale();
         Vector2 active_zoom = camera.get_zoom();
@@ -98,12 +126,13 @@ window.run([&](double delta) {
         mario.set_position(screen_pos);
         mario.set_scale(Vector2(base_scale.x * active_zoom.x, base_scale.y * active_zoom.y));
 
-        // Dibujar el árbol proyectado
         world.propagate_draw(&geom);
 
-        // Restaurar posición y escala originales en el espacio de mundo
         mario.set_position(world_pos);
         mario.set_scale(base_scale);
+
+        // --- Renderizado 2: Capa de Interfaz de Usuario ---
+        ui_root.propagate_draw(&geom);
     });
 
     console.stop();

@@ -226,8 +226,8 @@ struct Rect2 {
     bool has_area() const { return size.x > 0.0f && size.y > 0.0f; }
 
     bool has_point(const Vector2& p_point) const {
-        return (p_point.x >= position.x && p_point.x < position.x + size.x &&
-                p_point.y >= position.y && p_point.y < position.y + size.y);
+        return (p_point.x >= position.x && p_point.x <= position.x + size.x &&
+                p_point.y >= position.y && p_point.y <= position.y + size.y);
     }
     
     bool contains(const Vector2& p_point) const {

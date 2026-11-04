@@ -18,18 +18,29 @@
 #include "classes/2d/camera_2d.h"
 #include "classes/2d/sprite_2d.h"
 
+// Clases de interfaz
+
+#include "classes/interface/interface.h"
+#include "classes/interface/button.h"
+
+
 void register_core_classes() {
-    // 1. Raíz de objetos
+    // Raíz
     ClassDB::register_class<Object>();
 
-    // 2. Jerarquía de nodos
+    // Nodos Principales
     ClassDB::register_class<Node>();
     ClassDB::register_class<Spatial2D>();
     ClassDB::register_class<Node2D>();
+    ClassDB::register_class<Interface>();
 
-    // 3. Nodos hoja / especializados
+    // Nodos 2D
     ClassDB::register_class<Camera2D>();
     ClassDB::register_class<Sprite2D>();
+
+    // Nodos Interfaz
+    ClassDB::register_class<Button>();
+
 }
 
 void unregister_core_classes() {
