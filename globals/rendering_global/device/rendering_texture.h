@@ -5,11 +5,11 @@
 // All rights reserved.
 // =============================================================================
 
-
 #pragma once
 
 #include <cstdint>
 #include <string>
+#include "core/mathematics/math_2d.h" // Necesario para Size2i
 
 class RenderingTexture {
 public:
@@ -41,7 +41,13 @@ public:
     [[nodiscard]] uint32_t get_id() const { return m_texture_id; }
     [[nodiscard]] uint32_t get_width() const { return m_width; }
     [[nodiscard]] uint32_t get_height() const { return m_height; }
+    [[nodiscard]] Size2i get_size() const { return Size2i(static_cast<int>(m_width), static_cast<int>(m_height)); }
     [[nodiscard]] bool is_valid() const { return m_texture_id != 0; }
+
+    // Asignación de identificador y dimensiones para texturas generadas externamente (p. ej. atlas de FreeType)
+    void set_id(uint32_t p_id);
+    void set_size(const Size2i& p_size);
+    void set_native_handle(uint32_t p_texture_id, uint32_t p_width, uint32_t p_height);
 
 private:
     uint32_t m_texture_id = 0;

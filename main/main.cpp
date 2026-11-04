@@ -13,8 +13,10 @@
 #include "classes/2d/sprite_2d.h"
 #include "classes/resources/texture_2d.h"
 
-// Interfaz (UI) y Entrada
+// Interfaz (UI), Entrada y Texto Tipográfico
 #include "classes/interface/button.h"
+#include "classes/interface/label.h"
+#include "globals/rendering_global/text/rendering_text.h"
 #include "globals/input/input.h"
 
 // Consola Interactiva
@@ -70,6 +72,29 @@ int main() {
 
     ui_root.add_child(&my_button);
 
+    // --- Carga de JetBrains Mono y Creación del Label superior derecho ---
+    Ref<RenderingText> jetbrains_font = new RenderingText();
+    // Ajusta la ruta a donde guardaste el archivo .ttf
+    if (!jetbrains_font->load_font("JetBrainsMono-Regular.ttf", 26)) {
+        std::cerr << "\033[31m[Main] Error al cargar la fuente JetBrains Mono.\033[0m\n";
+    }
+
+    Label label_title("TitleLabel");
+    label_title.set_font(jetbrains_font);
+    label_title.set_text("¡PUZZLEEEE UwU!");
+    label_title.set_modulate(Color(0.95f, 0.4f, 0.6f, 1.0f)); // Tono rosa/magenta pastel
+
+    // Calcular posición anclada a la esquina superior derecha con margen de 25px
+    Vector2 text_dim = label_title.get_minimum_size();
+    float margin = 25.0f;
+    float label_x = static_cast<float>(window.get_size().width) - text_dim.x - margin;
+    float label_y = margin;
+
+    label_title.set_position(Vector2(label_x, label_y));
+    label_title.set_size(text_dim);
+
+    ui_root.add_child(&label_title);
+
     // Inicializar nodos en cascada
     root.propagate_ready();
 
@@ -88,6 +113,10 @@ int main() {
 
         RenderingGeometry& geom = window.get_rendering_geometry();
         Size2i vp_size = window.get_size();
+
+        // Actualizar la posición del Label si la ventana cambia de tamaño
+        Vector2 cur_dim = label_title.get_minimum_size();
+        label_title.set_position(Vector2(static_cast<float>(vp_size.width) - cur_dim.x - margin, margin));
 
         // --- Navegación de Cámara con Input nativo ---
         float move_speed = 400.0f * static_cast<float>(delta);
@@ -114,7 +143,7 @@ int main() {
         // Actualizar lógica de cámara
         camera.update_camera(delta, vp_size);
 
-        // Propagar proceso lógico a través del árbol (ejecuta Button::_process)
+        // Propagar proceso lógico a través del árbol (ejecuta Button::_process y Label::_process)
         root.propagate_process(static_cast<float>(delta));
 
         // --- Renderizado 1: Mundo 2D proyectado con cámara ---

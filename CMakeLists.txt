@@ -12,6 +12,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin")
 # Dependencias externas
 include(FetchContent)
 find_package(OpenGL REQUIRED)
+find_package(Freetype REQUIRED)
 
 FetchContent_Declare(
     glfw
@@ -43,6 +44,11 @@ add_subdirectory(modules)
 add_subdirectory(platform)
 add_subdirectory(editor)
 add_subdirectory(main)
+
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${FREETYPE_LIBRARIES})
 
 if (WIN32)
     # Incrusta libgcc, libstdc++ y el gestor de hilos de C++ dentro del propio .exe

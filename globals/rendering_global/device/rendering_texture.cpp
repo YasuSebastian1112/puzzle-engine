@@ -5,9 +5,16 @@
 // All rights reserved.
 // =============================================================================
 
+// 1. Las cabeceras del runtime de C y C++ PRIMERO que nada
+#include <string.h>
+#include <cstring>
+#include <cstdlib>
+
+// 2. Cabeceras propias del proyecto
 #include "rendering_texture.h"
 #include <glad/glad.h>
 
+// 3. Implementación de STB Image
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -136,6 +143,25 @@ bool RenderingTexture::load_from_memory(const uint8_t* p_buffer, size_t p_size, 
     stbi_image_free(data);
 
     return success;
+}
+
+void RenderingTexture::set_id(uint32_t p_id) {
+    if (m_texture_id != p_id) {
+        release();
+        m_texture_id = p_id;
+    }
+}
+
+void RenderingTexture::set_size(const Size2i& p_size) {
+    m_width = static_cast<uint32_t>(p_size.width > 0 ? p_size.width : 0);
+    m_height = static_cast<uint32_t>(p_size.height > 0 ? p_size.height : 0);
+}
+
+void RenderingTexture::set_native_handle(uint32_t p_texture_id, uint32_t p_width, uint32_t p_height) {
+    release();
+    m_texture_id = p_texture_id;
+    m_width = p_width;
+    m_height = p_height;
 }
 
 void RenderingTexture::bind(uint32_t p_slot) const {
