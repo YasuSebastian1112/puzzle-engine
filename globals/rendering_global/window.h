@@ -13,6 +13,7 @@
 #include "globals/rendering_global/device/rendering_geometry.h"
 #include "globals/rendering_global/device/rendering_texture.h"
 #include "core/viewport.h"
+#include "globals/rendering_global/text/rendering_text.h"
 
 typedef struct GLFWcursor GLFWcursor;
 
@@ -28,17 +29,25 @@ public:
         Custom
     };
 
+    enum class ClosePolicy {
+        WhenAllClosed,
+        WhenPrimaryClosed,
+        WhenAnyClosed
+    };
+
     enum class ResizeDirection {
-        None = 0,
-        Left   = 1 << 0,
-        Right  = 1 << 1,
-        Top    = 1 << 2,
-        Bottom = 1 << 3,
+        None        = 0,
+        Left        = 1 << 0,
+        Right       = 1 << 1,
+        Top         = 1 << 2,
+        Bottom      = 1 << 3,
         TopLeft     = Top | Left,
         TopRight    = Top | Right,
         BottomLeft  = Bottom | Left,
         BottomRight = Bottom | Right
     };
+
+
 
     // Modos de visualización equivalentes a la arquitectura de Godot Engine
     enum class Mode {
@@ -55,7 +64,9 @@ private:
     RenderingDevice rendering_device;
     RenderingGeometry m_geometry;
     RenderingTexture m_title_bar_icon;
+    RenderingText m_title_bar_font;
     bool m_icon_loaded = false;
+    bool m_font_loaded = false;
     bool m_is_rendering = false;
 
     // Viewports internos encapsulados
@@ -66,11 +77,16 @@ private:
     Mode current_mode = Mode::Windowed;
     String title = "New Window";
     Size2i size = Size2i(1280, 720);
+    Size2i min_size = Size2i(320, 200);
     Point2i position = Point2i(100, 100);
     bool vsync = true;
 
     Point2i m_saved_windowed_pos;
     Size2i m_saved_windowed_size;
+
+    // Estado de interacción con el ratón (por instancia de ventana)
+    int m_prev_mouse_left = 0; // GLFW_RELEASE
+    double m_last_titlebar_click_time = 0.0;
 
     // Estado del arrastre de ventana
     bool m_is_dragging = false;
@@ -79,10 +95,7 @@ private:
     int m_drag_win_start_x = 0;
     int m_drag_win_start_y = 0;
 
-    // Estado de la detección de doble clic en la barra
-    double m_last_titlebar_click_time = 0.0;
-
-    // Estado de redimensionamiento de bordes
+    // Estado del redimensionamiento manual de bordes
     ResizeDirection m_resize_direction = ResizeDirection::None;
     double m_resize_screen_start_x = 0.0;
     double m_resize_screen_start_y = 0.0;
@@ -91,6 +104,7 @@ private:
     int m_resize_win_start_w = 0;
     int m_resize_win_start_h = 0;
 
+    // Cursores del sistema
     GLFWcursor* m_cursor_arrow = nullptr;
     GLFWcursor* m_cursor_hresize = nullptr;
     GLFWcursor* m_cursor_vresize = nullptr;
@@ -108,11 +122,14 @@ private:
     void stop_resizing();
     void update_cursor_icon(ResizeDirection p_dir);
     void update_viewports(int p_fb_w, int p_fb_h);
+
     void enable_native_windows_snap(void* p_native_window_handle);
     void disable_native_windows_snap(void* p_native_window_handle);
 
     // Despacho de pases de renderizado independientes (escena y barra de título)
     void render_frame_passes(const FrameCallback& p_frame_callback, int p_fb_w, int p_fb_h);
+
+    FrameCallback m_frame_callback = nullptr;
 
 public:
     Window();
@@ -120,16 +137,22 @@ public:
 
     bool initialize(const String& p_title, const Size2i& p_size, const Point2i& p_pos, Type p_type);
     void run(FrameCallback p_frame_callback);
+    void set_frame_callback(FrameCallback p_callback) { m_frame_callback = std::move(p_callback); }
+    void process_frame(double p_delta);
     void close();
 
     void set_position(const Point2i& p_pos);
     Point2i get_position() const;
 
-    // Métodos de resolución pública (desacoplados: siempre retornan/configuran el espacio de trabajo del juego)
+    // Resolución del área de trabajo (excluye la barra de título en modo Editor)
     void set_size(const Size2i& p_size);
     Size2i get_size() const;
 
-    // Retorna las dimensiones totales de la ventana física en el sistema operativo
+    // Tamaño mínimo permitido para el área de trabajo
+    void set_min_size(const Size2i& p_size);
+    Size2i get_min_size() const { return min_size; }
+
+    // Dimensiones totales de la ventana física en el sistema operativo
     Size2i get_os_window_size() const;
 
     // Gestión de modos de ventana

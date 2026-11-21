@@ -58,3 +58,15 @@ if (WIN32)
         -static-libstdc++
     )
 endif()
+
+find_package(Freetype QUIET)
+if(NOT Freetype_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        freetype
+        GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+        GIT_TAG VER-2-13-3
+    )
+    FetchContent_MakeAvailable(freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()

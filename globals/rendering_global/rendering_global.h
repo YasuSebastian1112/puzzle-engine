@@ -9,18 +9,33 @@
 
 #include "window.h"
 #include "core/variant.h"
+#include <functional>
 #include <memory>
 #include <vector>
 
 class RenderingGlobal {
 public:
-    // Acceso a la instancia única global (patrón Singleton)
+
+    enum class ClosePolicy {
+        WhenAllClosed,
+        WhenPrimaryClosed,
+        WhenAnyClosed
+    };
+
+    using GlobalUpdateCallback = std::function<void(double delta)>;
+
+    // Acceso a la instancia única global (Singleton)
     static RenderingGlobal& get();
 
     // Ciclo de vida del subsistema
     bool init();
     void poll_events();
     void shutdown();
+
+    // Bucle principal multi-ventana del motor
+    void run(GlobalUpdateCallback p_global_update = nullptr,
+             ClosePolicy p_close_policy = ClosePolicy::WhenPrimaryClosed);
+    void stop() { m_running = false; }
 
     // Creación y administración de ventanas
     std::shared_ptr<Window> create_window(
@@ -33,17 +48,18 @@ public:
     void destroy_window(const std::shared_ptr<Window>& p_window);
     std::shared_ptr<Window> get_primary_window() const;
     const std::vector<std::shared_ptr<Window>>& get_windows() const { return windows; }
+    bool has_active_windows() const { return !windows.empty(); }
 
     // Limpieza de búfer sobre la ventana primaria
     void clear_screen(const Color& p_color);
 
 private:
     RenderingGlobal() = default;
-    ~RenderingGlobal() = default;
+    ~RenderingGlobal();
 
-    // Restricción de duplicación y asignación
     RenderingGlobal(const RenderingGlobal&) = delete;
     RenderingGlobal& operator=(const RenderingGlobal&) = delete;
 
     std::vector<std::shared_ptr<Window>> windows;
+    bool m_running = false;
 };

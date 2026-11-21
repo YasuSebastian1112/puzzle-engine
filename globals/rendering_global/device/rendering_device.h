@@ -94,6 +94,8 @@ public:
 
     void trigger_frame_update();
 
+
+    void make_current();
     // Operaciones de estado de renderizado y viewport
     void set_viewport(const Point2i& p_position, const Size2i& p_size);
     void set_clear_color(const Color& p_color);

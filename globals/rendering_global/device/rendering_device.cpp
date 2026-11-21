@@ -19,6 +19,8 @@
 #endif
 
 // Shaders básicos integrados para el pipeline de geometría 2D
+
+static int s_glfw_window_count = 0;
 static const char* vertex_shader_src = R"(
 #version 330 core
 layout (location = 0) in vec2 a_pos;
@@ -133,12 +135,21 @@ bool RenderingDevice::create_window(const String& p_title, const Size2i& p_size,
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
+    if (s_glfw_window_count == 0) {
+        if (!glfwInit()) {
+            std::cerr << "[RenderingDevice] Fallo crítico al inicializar GLFW." << std::endl;
+            return false;
+        }
+    }
+
     GLFWwindow* window = glfwCreateWindow(p_size.width, p_size.height, p_title.c_str(), nullptr, nullptr);
     if (!window) {
         std::cerr << "[RenderingDevice] Fallo al crear la instancia de GLFWwindow." << std::endl;
-        glfwTerminate();
+        if (s_glfw_window_count == 0) glfwTerminate();
         return false;
     }
+
+    s_glfw_window_count++;
 
     native_window = static_cast<WindowHandle>(window);
     glfwSetWindowPos(window, p_pos.x, p_pos.y);
@@ -280,7 +291,17 @@ void RenderingDevice::destroy_window() {
 
         glfwDestroyWindow(win);
         native_window = nullptr;
-        glfwTerminate();
+        s_glfw_window_count--;
+        if (s_glfw_window_count <= 0) {
+            s_glfw_window_count = 0;
+            glfwTerminate();
+        }
+    }
+}
+
+void RenderingDevice::make_current() {
+    if (native_window) {
+        glfwMakeContextCurrent(static_cast<GLFWwindow*>(native_window));
     }
 }
 

@@ -35,7 +35,7 @@ public:
 
     // Carga el archivo tipográfico (.ttf, .otf) y precomputa el atlas de glifos
     bool load_font(const String& p_filepath, uint32_t p_pixel_size = 24);
-
+    bool load_font_from_memory(const uint8_t* p_data, size_t p_size, uint32_t p_pixel_size = 24);
     // Consulta de glifo individual por código Unicode / ASCII
     const GlyphMetrics* get_glyph(uint32_t p_codepoint) const;
 

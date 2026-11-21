@@ -16,6 +16,28 @@
 #include FT_FREETYPE_H
 #include <glad/glad.h>
 
+// Decodifica el siguiente codepoint UTF-8 y avanza el índice
+static uint32_t decode_utf8(const String& p_text, size_t& p_index) {
+    uint8_t b0 = static_cast<uint8_t>(p_text[p_index]);
+    if (b0 < 0x80) {
+        p_index += 1;
+        return b0;
+    }
+    if ((b0 & 0xE0) == 0xC0 && p_index + 1 < p_text.length()) {
+        uint8_t b1 = static_cast<uint8_t>(p_text[p_index + 1]);
+        p_index += 2;
+        return ((b0 & 0x1F) << 6) | (b1 & 0x3F);
+    }
+    if ((b0 & 0xF0) == 0xE0 && p_index + 2 < p_text.length()) {
+        uint8_t b1 = static_cast<uint8_t>(p_text[p_index + 1]);
+        uint8_t b2 = static_cast<uint8_t>(p_text[p_index + 2]);
+        p_index += 3;
+        return ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F);
+    }
+    p_index += 1;
+    return '?';
+}
+
 RenderingText::RenderingText() {
 }
 
@@ -31,6 +53,15 @@ RenderingText::~RenderingText() {
 }
 
 bool RenderingText::load_font(const String& p_filepath, uint32_t p_pixel_size) {
+    if (m_ft_face) {
+        FT_Done_Face(static_cast<FT_Face>(m_ft_face));
+        m_ft_face = nullptr;
+    }
+    if (m_ft_library) {
+        FT_Done_FreeType(static_cast<FT_Library>(m_ft_library));
+        m_ft_library = nullptr;
+    }
+
     font_size = p_pixel_size;
 
     FT_Library ft_lib = nullptr;
@@ -53,6 +84,46 @@ bool RenderingText::load_font(const String& p_filepath, uint32_t p_pixel_size) {
     FT_Set_Pixel_Sizes(face, 0, font_size);
 
     // Métricas generales de la fuente (FreeType entrega en 1/64 de píxel -> shift >> 6)
+    line_height = static_cast<float>(face->size->metrics.height >> 6);
+    ascender    = static_cast<float>(face->size->metrics.ascender >> 6);
+    descender   = static_cast<float>(face->size->metrics.descender >> 6);
+
+    _build_texture_atlas();
+    return true;
+}
+
+bool RenderingText::load_font_from_memory(const uint8_t* p_data, size_t p_size, uint32_t p_pixel_size) {
+    if (!p_data || p_size == 0) return false;
+
+    if (m_ft_face) {
+        FT_Done_Face(static_cast<FT_Face>(m_ft_face));
+        m_ft_face = nullptr;
+    }
+    if (m_ft_library) {
+        FT_Done_FreeType(static_cast<FT_Library>(m_ft_library));
+        m_ft_library = nullptr;
+    }
+
+    font_size = p_pixel_size;
+
+    FT_Library ft_lib = nullptr;
+    if (FT_Init_FreeType(&ft_lib)) {
+        std::cerr << "\033[31m[RenderingText] Error al inicializar FreeType.\033[0m\n";
+        return false;
+    }
+    m_ft_library = ft_lib;
+
+    FT_Face face = nullptr;
+    if (FT_New_Memory_Face(ft_lib, reinterpret_cast<const FT_Byte*>(p_data), static_cast<FT_Long>(p_size), 0, &face)) {
+        std::cerr << "\033[31m[RenderingText] No se pudo cargar la fuente desde memoria.\033[0m\n";
+        FT_Done_FreeType(ft_lib);
+        m_ft_library = nullptr;
+        return false;
+    }
+    m_ft_face = face;
+
+    FT_Set_Pixel_Sizes(face, 0, font_size);
+
     line_height = static_cast<float>(face->size->metrics.height >> 6);
     ascender    = static_cast<float>(face->size->metrics.ascender >> 6);
     descender   = static_cast<float>(face->size->metrics.descender >> 6);
@@ -114,7 +185,7 @@ void RenderingText::_build_texture_atlas() {
         }
 
         GlyphMetrics metrics;
-        metrics.size = Vector2(static_cast<float>(gw), static_cast<float>(gh));
+        metrics.size    = Vector2(static_cast<float>(gw), static_cast<float>(gh));
         metrics.bearing = Vector2(static_cast<float>(slot->bitmap_left), static_cast<float>(slot->bitmap_top));
         metrics.advance = static_cast<float>(slot->advance.x >> 6);
 
@@ -164,16 +235,17 @@ Vector2 RenderingText::get_string_size(const String& p_text) const {
     float max_w = 0.0f;
     float total_h = line_height;
 
-    for (size_t i = 0; i < p_text.length(); ++i) {
-        uint8_t c = static_cast<uint8_t>(p_text[i]);
-        if (c == '\n') {
+    size_t i = 0;
+    while (i < p_text.length()) {
+        uint32_t codepoint = decode_utf8(p_text, i);
+        if (codepoint == '\n') {
             max_w = std::max(max_w, cur_line_w);
             cur_line_w = 0.0f;
             total_h += line_height;
             continue;
         }
 
-        const GlyphMetrics* g = get_glyph(c);
+        const GlyphMetrics* g = get_glyph(codepoint);
         if (g) {
             cur_line_w += g->advance;
         }
@@ -193,16 +265,17 @@ void RenderingText::draw_text(
     Vector2 cursor = p_position;
     cursor.y += ascender; // Colocar el cursor sobre la línea base tipográfica
 
-    for (size_t i = 0; i < p_text.length(); ++i) {
-        uint8_t c = static_cast<uint8_t>(p_text[i]);
+    size_t i = 0;
+    while (i < p_text.length()) {
+        uint32_t codepoint = decode_utf8(p_text, i);
 
-        if (c == '\n') {
+        if (codepoint == '\n') {
             cursor.x = p_position.x;
             cursor.y += line_height;
             continue;
         }
 
-        const GlyphMetrics* g = get_glyph(c);
+        const GlyphMetrics* g = get_glyph(codepoint);
         if (!g) continue;
 
         // Vértices del glifo en coordenadas de pantalla
