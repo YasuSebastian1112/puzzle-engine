@@ -5,21 +5,18 @@
 // All rights reserved.
 // =============================================================================
 
-// 1. Las cabeceras del runtime de C y C++ PRIMERO que nada
+#include "rendering_geometry.h"
 #include <string.h>
 #include <cstring>
 #include <cstdlib>
 
-// 2. Cabeceras propias del proyecto
 #include "rendering_texture.h"
 #include <glad/glad.h>
 
-// 3. Implementación de STB Image
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 RenderingTexture::RenderingTexture() {
-    // Inicialización por defecto en 0 (invalida hasta cargar o crear)
 }
 
 RenderingTexture::~RenderingTexture() {
@@ -171,4 +168,48 @@ void RenderingTexture::bind(uint32_t p_slot) const {
 
 void RenderingTexture::unbind() const {
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void RenderingTexture::draw(
+    RenderingGeometry* p_geometry,
+    const Rect2& p_rect,
+    const Color& p_modulate,
+    const Rect2& p_src_rect
+) const {
+    if (!p_geometry || m_texture_id == 0) return;
+
+    Rect2 r = p_rect.abs();
+    Vector2 v0 = r.position;
+    Vector2 v1 = r.position + Vector2(r.size.x, 0.0f);
+    Vector2 v2 = r.position + r.size;
+    Vector2 v3 = r.position + Vector2(0.0f, r.size.y);
+
+    Vector2 uv0 = p_src_rect.position;
+    Vector2 uv1 = p_src_rect.position + Vector2(p_src_rect.size.x, 0.0f);
+    Vector2 uv2 = p_src_rect.position + p_src_rect.size;
+    Vector2 uv3 = p_src_rect.position + Vector2(0.0f, p_src_rect.size.y);
+
+    draw_quad(p_geometry, v0, v1, v2, v3, uv0, uv1, uv2, uv3, p_modulate);
+}
+
+void RenderingTexture::draw_quad(
+    RenderingGeometry* p_geometry,
+    const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
+    const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
+    const Color& p_color
+) const {
+    if (!p_geometry || m_texture_id == 0) return;
+
+    RenderingDevice* device = p_geometry->get_rendering_device();
+    if (!device) return;
+
+    // Vaciar geometría previa para no contaminar el lote con esta textura
+    p_geometry->flush();
+
+    bind(0);
+    p_geometry->push_quad(v0, v1, v2, v3, uv0, uv1, uv2, uv3, p_color);
+    p_geometry->flush();
+
+    // Restaurar textura blanca por defecto para primitivas de color sólido
+    glBindTexture(GL_TEXTURE_2D, device->get_default_white_texture());
 }

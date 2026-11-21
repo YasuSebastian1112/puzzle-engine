@@ -252,11 +252,11 @@ void RenderingText::draw_text(
             float x1 = x0 + g->size.x;
             float y1 = y0 + g->size.y;
 
-            p_geometry->draw_quad_textured(
+            atlas_texture.draw_quad(
+                p_geometry,
                 Vector2(x0, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(x0, y1),
                 Vector2(g->uv_min.x, g->uv_min.y), Vector2(g->uv_max.x, g->uv_min.y),
                 Vector2(g->uv_max.x, g->uv_max.y), Vector2(g->uv_min.x, g->uv_max.y),
-                atlas_texture,
                 p_color
             );
         }

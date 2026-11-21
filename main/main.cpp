@@ -1,9 +1,8 @@
 #include <iostream>
 #include "globals/rendering_global/rendering_global.h"
 #include "classes/register_class_types.h"
-#include "classes/interface/interface.h"
-#include "classes/interface/label.h"
-#include "classes/interface/button.h"
+#include "classes/2d/sprite_2d.h"
+#include "classes/resources/texture_2d.h"
 
 int main() {
     register_core_classes();
@@ -11,45 +10,39 @@ int main() {
     auto& rg = RenderingGlobal::get();
     rg.init();
 
-    auto win = rg.create_window(Size2i(800, 600), "Puzzle Engine - UI", Point2i(100, 100), Window::Type::Editor);
+    auto win = rg.create_window(Size2i(800, 600), "Puzzle Engine - Sprite2D", Point2i(100, 100), Window::Type::Editor);
     if (!win) {
         return -1;
     }
 
-    // Contenedor raíz de la interfaz (se ajusta dinámicamente al tamaño de la ventana)
-    Interface ui_root("UIRoot");
+    // Configurar Stretch estilo Godot (mantiene proporción al redimensionar)
+    win->set_content_scale_mode(Viewport::StretchMode::CanvasItems);
+    win->set_content_scale_aspect(Viewport::StretchAspect::Keep);
 
-    // Label centrado, desplazado hacia arriba del botón
-    Label label("LabelTitulo");
-    label.set_text("presionalo");
-    label.set_horizontal_alignment(Label::ALIGN_CENTER);
-    label.set_vertical_alignment(Label::VALIGN_CENTER);
-    label.set_anchors_preset(Interface::LayoutPreset::Center);
-    label.set_position(Vector2(0.0f, -40.0f));
+    // Cargar la textura (con el contexto OpenGL ya activo)
+    Ref<Texture2D> tex = new Texture2D();
+    bool loaded = tex->load("HELLBUNNY OG.png", false); // false = GL_NEAREST (pixel art nítido)
+    if (!loaded) {
+        // Respaldo si el directorio de trabajo es la raíz del proyecto
+        loaded = tex->load("bin/HELLBUNNY OG.png", false);
+    }
 
-    // Botón centrado en la ventana
-    Button button("BotonAccion");
-    button.set_text("presioname");
-    button.set_size(Vector2(140.0f, 38.0f));
-    button.set_anchors_preset(Interface::LayoutPreset::Center);
-    button.set_position(Vector2(0.0f, 10.0f));
+    if (!loaded) {
+        std::cerr << "[Main] No se pudo cargar HELLBUNNY OG.png\n";
+    }
 
-    int clicks = 0;
-    button.set_on_pressed([&]() {
-        clicks++;
-        label.set_text("presionado: " + std::to_string(clicks));
-    });
+    Sprite2D sprite("Hellbunny");
+    sprite.set_texture(tex);
+    sprite.set_centered(true);
 
-    ui_root.add_child(&label);
-    ui_root.add_child(&button);
-
-    // Dibujado de la interfaz dentro del viewport de la ventana
     win->set_frame_callback([&](double delta) {
-        Size2i win_size = win->get_size();
-        ui_root.set_size(Vector2(static_cast<float>(win_size.width), static_cast<float>(win_size.height)));
+        (void)delta;
 
-        button._process(static_cast<float>(delta));
-        ui_root.propagate_draw(&win->get_rendering_geometry());
+        // Mantener el sprite centrado en el espacio lógico del viewport
+        Vector2 vp_size = win->get_viewport_size();
+        sprite.set_position(vp_size * 0.5f);
+
+        sprite._draw(&win->get_rendering_geometry());
     });
 
     rg.run(nullptr, RenderingGlobal::ClosePolicy::WhenPrimaryClosed);

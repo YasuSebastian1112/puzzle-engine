@@ -212,68 +212,11 @@ void RenderingGeometry::draw_text(const Vector2& p_pos, const String& p_text, co
     }
 }
 
-void RenderingGeometry::draw_texture(const Rect2& p_rect, uint32_t p_texture_id, const Color& p_modulate, const Rect2& p_src_rect) {
-    // Si la textura solicitada cambia respecto a lo que hay en el lote actual,
-    // se vacía el buffer para no pintar geometrías previas con la textura nueva
-    flush();
-
-    // Enlazar la textura en el slot 0
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, p_texture_id);
-
-    Rect2 r = p_rect.abs();
-    Vector2 top_left     = r.position;
-    Vector2 top_right    = r.position + Vector2(r.size.x, 0.0f);
-    Vector2 bottom_right = r.position + r.size;
-    Vector2 bottom_left  = r.position + Vector2(0.0f, r.size.y);
-
-    Vector2 uv_tl = p_src_rect.position;
-    Vector2 uv_tr = p_src_rect.position + Vector2(p_src_rect.size.x, 0.0f);
-    Vector2 uv_br = p_src_rect.position + p_src_rect.size;
-    Vector2 uv_bl = p_src_rect.position + Vector2(0.0f, p_src_rect.size.y);
-
-    check_batch_overflow(4, 6);
-
-    uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
-
-    batched_vertices.push_back({ top_left,     p_modulate, uv_tl });
-    batched_vertices.push_back({ top_right,    p_modulate, uv_tr });
-    batched_vertices.push_back({ bottom_right, p_modulate, uv_br });
-    batched_vertices.push_back({ bottom_left,  p_modulate, uv_bl });
-
-    batched_indices.push_back(base_index + 0);
-    batched_indices.push_back(base_index + 1);
-    batched_indices.push_back(base_index + 2);
-
-    batched_indices.push_back(base_index + 2);
-    batched_indices.push_back(base_index + 3);
-    batched_indices.push_back(base_index + 0);
-
-    // Vaciar este quad con su textura enlazada
-    flush();
-
-    // Restaurar la textura blanca para que las llamadas regulares de draw_rect/draw_line sigan funcionando
-    glBindTexture(GL_TEXTURE_2D, rendering_device->get_default_white_texture());
-}
-
-void RenderingGeometry::draw_texture(const Rect2& p_rect, const RenderingTexture& p_texture, const Color& p_modulate, const Rect2& p_src_rect) {
-    draw_texture(p_rect, p_texture.get_id(), p_modulate, p_src_rect);
-}
-
-void RenderingGeometry::draw_quad_textured(
+void RenderingGeometry::push_quad(
     const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
     const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
-    const RenderingTexture& p_texture,
     const Color& p_color
 ) {
-    // Si la textura solicitada cambia respecto a lo que hay en el lote actual,
-    // se vacía el buffer para no pintar geometrías previas con la textura nueva
-    flush();
-
-    // Enlazar la textura en el slot 0
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, p_texture.get_id());
-
     check_batch_overflow(4, 6);
 
     uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
@@ -290,10 +233,17 @@ void RenderingGeometry::draw_quad_textured(
     batched_indices.push_back(base_index + 2);
     batched_indices.push_back(base_index + 3);
     batched_indices.push_back(base_index + 0);
+}
 
-    // Vaciar este quad con su textura enlazada
-    flush();
+void RenderingGeometry::draw_texture(const Rect2& p_rect, const RenderingTexture& p_texture, const Color& p_modulate, const Rect2& p_src_rect) {
+    p_texture.draw(this, p_rect, p_modulate, p_src_rect);
+}
 
-    // Restaurar la textura blanca para que las llamadas regulares de draw_rect/draw_line sigan funcionando
-    glBindTexture(GL_TEXTURE_2D, rendering_device->get_default_white_texture());
+void RenderingGeometry::draw_quad_textured(
+    const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
+    const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
+    const RenderingTexture& p_texture,
+    const Color& p_color
+) {
+    p_texture.draw_quad(this, v0, v1, v2, v3, uv0, uv1, uv2, uv3, p_color);
 }

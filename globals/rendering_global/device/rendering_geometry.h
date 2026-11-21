@@ -49,7 +49,6 @@ public:
     explicit RenderingGeometry(RenderingDevice* p_device);
     ~RenderingGeometry() = default;
 
-    void set_rendering_device(RenderingDevice* p_device) { rendering_device = p_device; }
 
     // Primitivas de renderizado 2D
     void draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width = 1.0f);
@@ -58,12 +57,27 @@ public:
     void draw_polygon(const std::vector<Vector2>& p_points, const Color& p_color);
     void draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width = 1.0f);
 
+    void set_rendering_device(RenderingDevice* p_device) { rendering_device = p_device; }
+    RenderingDevice* get_rendering_device() const { return rendering_device; }
+
+    // Inserta un quad genérico en el lote actual (usado por RenderingTexture y RenderingText)
+    void push_quad(
+        const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
+        const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
+        const Color& p_color
+    );
+
    //[[deprecated("Usar TextRenderer y FontResource para dibujar texto tipografico.")]]
     [[deprecated("Usar RenderingText para dibujar texto tipografico.")]]
     void draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color = Color(1.0f, 1.0f, 1.0f, 1.0f), float p_scale = 2.0f);
     
+    [[deprecated("Usar RenderingTexture::draw() para renderizar texturas.")]]
     void draw_texture(const Rect2& p_rect, uint32_t p_texture_id, const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f), const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f));
+    
+    [[deprecated("Usar RenderingTexture::draw() para renderizar texturas.")]]
     void draw_texture(const Rect2& p_rect, const RenderingTexture& p_texture, const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f), const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f));
+    
+    [[deprecated("Usar RenderingTexture::draw_quad() para renderizar quads texturizados.")]]
     void draw_quad_textured(
     const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
     const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,

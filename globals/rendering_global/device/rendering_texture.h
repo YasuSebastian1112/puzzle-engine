@@ -9,7 +9,10 @@
 
 #include <cstdint>
 #include <string>
-#include "core/mathematics/math_2d.h" // Necesario para Size2i
+#include "core/mathematics/math_2d.h"
+#include "core/color.h"
+
+class RenderingGeometry;
 
 class RenderingTexture {
 public:
@@ -35,6 +38,21 @@ public:
     void bind(uint32_t p_slot = 0) const;
     void unbind() const;
 
+    // Renderizado desacoplado de la textura usando el batcher de geometría
+    void draw(
+        RenderingGeometry* p_geometry,
+        const Rect2& p_rect,
+        const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f),
+        const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f)
+    ) const;
+
+    void draw_quad(
+        RenderingGeometry* p_geometry,
+        const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
+        const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
+        const Color& p_color = Color(1.0f, 1.0f, 1.0f, 1.0f)
+    ) const;
+
     // Destrucción explícita del recurso en GPU
     void release();
 
@@ -44,7 +62,7 @@ public:
     [[nodiscard]] Size2i get_size() const { return Size2i(static_cast<int>(m_width), static_cast<int>(m_height)); }
     [[nodiscard]] bool is_valid() const { return m_texture_id != 0; }
 
-    // Asignación de identificador y dimensiones para texturas generadas externamente (p. ej. atlas de FreeType)
+    // Asignación de identificador y dimensiones para texturas generadas externamente
     void set_id(uint32_t p_id);
     void set_size(const Size2i& p_size);
     void set_native_handle(uint32_t p_texture_id, uint32_t p_width, uint32_t p_height);

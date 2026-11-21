@@ -67,7 +67,6 @@ private:
     RenderingTexture m_title_bar_icon;
     Ref<FontResource> m_title_bar_font;
     bool m_icon_loaded = false;
-    bool m_font_loaded = false;
     bool m_is_rendering = false;
 
     // Viewports internos encapsulados
@@ -170,7 +169,7 @@ public:
     bool is_dragging() const { return m_is_dragging; }
     bool is_resizing() const { return m_resize_direction != ResizeDirection::None; }
 
-    const String& get_title() const { return title; }
+    String get_title() const { return title; }
     void set_title(const String& p_title);
     bool set_icon(const String& p_filepath);
     bool set_icon_from_memory(const uint8_t* p_buffer, size_t p_size);
@@ -183,6 +182,26 @@ public:
     void swap_buffers();
     void poll_events();
     bool should_close() const;
+
+
+    void set_content_scale_size(const Size2i& p_size) { m_game_viewport.set_base_size(p_size); }
+    Size2i get_content_scale_size() const { return m_game_viewport.get_base_size(); }
+
+    void set_content_scale_mode(Viewport::StretchMode p_mode) { m_game_viewport.set_stretch_mode(p_mode); }
+    Viewport::StretchMode get_content_scale_mode() const { return m_game_viewport.get_stretch_mode(); }
+
+    void set_content_scale_aspect(Viewport::StretchAspect p_aspect) { m_game_viewport.set_stretch_aspect(p_aspect); }
+    Viewport::StretchAspect get_content_scale_aspect() const { return m_game_viewport.get_stretch_aspect(); }
+
+    void set_content_scale_factor(float p_scale) { m_game_viewport.set_stretch_scale(p_scale); }
+    float get_content_scale_factor() const { return m_game_viewport.get_stretch_scale(); }
+
+    void set_content_scale_stretch(Viewport::StretchScaleMode p_mode) { m_game_viewport.set_stretch_scale_mode(p_mode); }
+    Viewport::StretchScaleMode get_content_scale_stretch() const { return m_game_viewport.get_stretch_scale_mode(); }
+
+    // Resolución lógica actual del Viewport (usar para UI / layout)
+    Vector2 get_viewport_size() const { return m_game_viewport.get_logical_size(); }
+    Viewport& get_game_viewport() { return m_game_viewport; }
 
     RenderingDevice& get_rendering_device() { return rendering_device; }
     RenderingGeometry& get_rendering_geometry() { return m_geometry; }

@@ -76,12 +76,7 @@ void Sprite2D::_draw(RenderingGeometry* p_geometry) {
     Vector2 uv3(uv_min.x, uv_max.y);
 
     // Emisión al batcher existente con modulación de color y vértices transformados
-    p_geometry->draw_quad_textured(
-        v0, v1, v2, v3,
-        uv0, uv1, uv2, uv3,
-        r_tex,
-        get_global_modulate()
-    );
+    r_tex.draw_quad(p_geometry, v0, v1, v2, v3, uv0, uv1, uv2, uv3, get_global_modulate());
 }
 
 // -----------------------------------------------------------------------------

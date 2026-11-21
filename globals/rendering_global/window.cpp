@@ -66,7 +66,7 @@ static void x11_start_moveresize(GLFWwindow* p_win, int p_direction) {
 #include "core/time/engine_time.h"
 #include "licenses_generated/logo.h"
 #include "licenses_generated/default_font.h"
-
+#include "core/class_db.h"
 
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -123,6 +123,7 @@ Window::~Window() {
         m_icon_loaded = false;
     }
 
+    m_title_bar_font = nullptr;
     rendering_device.destroy_window();
 }
 
@@ -130,6 +131,8 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
     title = p_title;
     type = p_type;
     position = p_pos;
+
+    m_game_viewport.set_base_size(p_size);
 
     // Garantizar que la ventana física reserve el alto de la barra en modo Editor
     int title_padding = (type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
@@ -204,9 +207,8 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
             Window* self = static_cast<Window*>(glfwGetWindowUserPointer(p_win));
             if (!self) return;
 
-            int title_offset = (self->type == Type::Editor) ? TITLE_BAR_HEIGHT : 0;
-            double local_y = ypos - static_cast<double>(title_offset);
-            Input::on_mouse_moved_event(xpos, local_y);
+            Vector2 local = self->m_game_viewport.to_local(Vector2(static_cast<float>(xpos), static_cast<float>(ypos)));
+            Input::on_mouse_moved_event(static_cast<double>(local.x), static_cast<double>(local.y));
         });
 
         glfwSetMouseButtonCallback(win, [](GLFWwindow*, int button, int action, int mods) {
@@ -739,7 +741,7 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     if (m_icon_loaded) {
         constexpr float ICON_SIZE = 18.0f;
         float icon_y = (BAR_HEIGHT - ICON_SIZE) * 0.5f;
-        p_geometry.draw_texture(Rect2(icon_offset_x, icon_y, ICON_SIZE, ICON_SIZE), m_title_bar_icon);
+        m_title_bar_icon.draw(&p_geometry, Rect2(icon_offset_x, icon_y, ICON_SIZE, ICON_SIZE));
         icon_offset_x += ICON_SIZE + 8.0f;
     }
 
@@ -965,4 +967,16 @@ void Window::run(FrameCallback p_frame_callback) {
 #if defined(_WIN32)
     OSWindows::restore_system_timer();
 #endif
+}
+
+// -------------------------------------------------------------------------
+// (ClassDB)
+// -------------------------------------------------------------------------
+void Window::_bind_methods() {
+    ClassDB::add_property("title", &Window::set_title, &Window::get_title);
+    ClassDB::add_property("position", &Window::set_position, &Window::get_position);
+    ClassDB::add_property("size", &Window::set_size, &Window::get_size);
+    ClassDB::add_property("min_size", &Window::set_min_size, &Window::get_min_size);
+    ClassDB::add_property("content_scale_size", &Window::set_content_scale_size, &Window::get_content_scale_size);
+    ClassDB::add_property("content_scale_factor", &Window::set_content_scale_factor, &Window::get_content_scale_factor);
 }
