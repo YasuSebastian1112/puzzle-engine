@@ -5,8 +5,67 @@
 // All rights reserved.
 // =============================================================================
 
+
+#if defined(__linux__)
+#define Window X11Window
+#define Time X11Time
+#define GLFW_INCLUDE_NONE
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#undef Window
+#undef Time
+
+// Delega el movimiento o redimensionado atómico al gestor de ventanas X11 (EWMH)
+static void x11_start_moveresize(GLFWwindow* p_win, int p_direction) {
+    Display* display = glfwGetX11Display();
+    X11Window x11_win = glfwGetX11Window(p_win);
+    if (!display || !x11_win) return;
+
+    X11Window root_ret, child_ret;
+    int root_x = 0, root_y = 0, win_x = 0, win_y = 0;
+    unsigned int mask = 0;
+    XQueryPointer(display, DefaultRootWindow(display), &root_ret, &child_ret, &root_x, &root_y, &win_x, &win_y, &mask);
+
+    XUngrabPointer(display, CurrentTime);
+
+    Atom wm_moveresize = XInternAtom(display, "_NET_WM_MOVERESIZE", False);
+    XEvent xev = {};
+    xev.xclient.type = ClientMessage;
+    xev.xclient.window = x11_win;
+    xev.xclient.message_type = wm_moveresize;
+    xev.xclient.format = 32;
+    xev.xclient.data.l[0] = root_x;
+    xev.xclient.data.l[1] = root_y;
+    xev.xclient.data.l[2] = p_direction;
+    xev.xclient.data.l[3] = Button1;
+    xev.xclient.data.l[4] = 1;
+
+    XSendEvent(display, DefaultRootWindow(display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+    XFlush(display);
+}
+
+// Limpiar macros invasivas de Xlib para que no choquen con enums del motor
+#undef None
+#undef Status
+#undef Bool
+#undef True
+#undef False
+#undef Button1
+#undef Button2
+#undef Button3
+#undef Button4
+#undef Button5
+#endif
+
 #include "window.h"
 #include <GLFW/glfw3.h>
+#include "globals/input/input.h"
+#include "core/time/engine_time.h"
+#include "licenses_generated/logo.h"
+
 
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -14,9 +73,8 @@
 #include <windows.h>
 #include "platform/system_info.h"
 #include "platform/windows/os_windows.h"
-#include "core/time/engine_time.h"
-#include "licenses_generated/logo.h"
-#include "globals/input/input.h"
+
+
 
 static const wchar_t* PROP_ORIG_WNDPROC = L"PuzzleEngine_OrigWndProc";
 
@@ -51,6 +109,9 @@ static LRESULT CALLBACK custom_borderless_wndproc(HWND hwnd, UINT msg, WPARAM wp
     return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 #endif
+
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3native.h>
 
 void Window::enable_native_windows_snap(void* p_native_window_handle) {
 #if defined(_WIN32)
@@ -214,7 +275,7 @@ void Window::set_title(const String& p_title) {
 bool Window::set_icon(const String& p_filepath) {
     if (m_icon_loaded) {
         m_title_bar_icon.release();
-        m_icon_loaded = false;
+        m_icon_loaded = false; 
     }
 
     if (m_title_bar_icon.load_from_file(p_filepath.c_str(), false)) {
@@ -410,6 +471,12 @@ void Window::start_dragging() {
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (!win || current_mode != Mode::Windowed) return;
 
+#if defined(__linux__)
+    // 8 = _NET_WM_MOVERESIZE_MOVE
+    x11_start_moveresize(win, 8);
+    return;
+#endif
+
     m_is_dragging = true;
     double cx, cy;
     glfwGetCursorPos(win, &cx, &cy);
@@ -497,6 +564,25 @@ void Window::start_resizing(ResizeDirection p_dir) {
     if (p_dir == ResizeDirection::None || current_mode != Mode::Windowed) return;
     GLFWwindow* win = static_cast<GLFWwindow*>(rendering_device.get_native_handle());
     if (!win) return;
+
+#if defined(__linux__)
+    // Constantes oficiales de EWMH _NET_WM_MOVERESIZE:
+    // 0: TopLeft, 1: Top, 2: TopRight, 3: Right, 4: BottomRight, 5: Bottom, 6: BottomLeft, 7: Left
+    int ewmh_dir = -1;
+    if (p_dir == ResizeDirection::TopLeft)          ewmh_dir = 0;
+    else if (p_dir == ResizeDirection::Top)         ewmh_dir = 1;
+    else if (p_dir == ResizeDirection::TopRight)    ewmh_dir = 2;
+    else if (p_dir == ResizeDirection::Right)       ewmh_dir = 3;
+    else if (p_dir == ResizeDirection::BottomRight) ewmh_dir = 4;
+    else if (p_dir == ResizeDirection::Bottom)      ewmh_dir = 5;
+    else if (p_dir == ResizeDirection::BottomLeft)  ewmh_dir = 6;
+    else if (p_dir == ResizeDirection::Left)        ewmh_dir = 7;
+
+    if (ewmh_dir != -1) {
+        x11_start_moveresize(win, ewmh_dir);
+        return;
+    }
+#endif
 
     m_resize_direction = p_dir;
     double cx, cy;
@@ -594,6 +680,7 @@ void Window::process_window_interaction() {
 
     constexpr float BAR_HEIGHT = static_cast<float>(TITLE_BAR_HEIGHT);
     constexpr float BTN_WIDTH = 34.0f;
+    constexpr int RESIZE_MARGIN = 6;
 
     double mx, my;
     glfwGetCursorPos(win, &mx, &my);
@@ -612,11 +699,12 @@ void Window::process_window_interaction() {
     bool hover_max   = (mx >= rect_max.position.x && mx <= rect_max.position.x + rect_max.size.width && my >= 0 && my <= BAR_HEIGHT);
     bool hover_min   = (mx >= rect_min.position.x && mx <= rect_min.position.x + rect_min.size.width && my >= 0 && my <= BAR_HEIGHT);
 
-    // Actualización de forma del cursor según cercanía a bordes
+    ResizeDirection hover_dir = hit_test_resize_borders(cursor_pos, RESIZE_MARGIN);
+
+    // Actualización de forma del cursor según cercanía a bordes (incluyendo el borde superior)
     if (m_resize_direction == ResizeDirection::None && !m_is_dragging) {
-        if (my > BAR_HEIGHT || type != Type::Editor) {
-            auto hit_dir = hit_test_resize_borders(cursor_pos, 8);
-            update_cursor_icon(hit_dir);
+        if (!hover_close && !hover_max && !hover_min) {
+            update_cursor_icon(hover_dir);
         } else {
             update_cursor_icon(ResizeDirection::None);
         }
@@ -625,30 +713,26 @@ void Window::process_window_interaction() {
     // Procesamiento de clics y doble clic en la barra personalizada
     if (just_pressed) {
         if (!m_is_dragging && m_resize_direction == ResizeDirection::None) {
-            if (type == Type::Editor && my <= BAR_HEIGHT) {
-                if (hover_close) {
-                    close();
-                } else if (hover_max) {
-                    toggle_maximize();
-                } else if (hover_min) {
-                    minimize();
-                } else {
-                    double current_time = glfwGetTime();
-                    double click_interval = current_time - m_last_titlebar_click_time;
+            if (type == Type::Editor && hover_close) {
+                close();
+            } else if (type == Type::Editor && hover_max) {
+                toggle_maximize();
+            } else if (type == Type::Editor && hover_min) {
+                minimize();
+            } else if (hover_dir != ResizeDirection::None) {
+                // Prioridad al redimensionado (permite agarrar el borde superior encima del título)
+                start_resizing(hover_dir);
+            } else if (type == Type::Editor && my <= BAR_HEIGHT) {
+                double current_time = glfwGetTime();
+                double click_interval = current_time - m_last_titlebar_click_time;
 
-                    // Doble clic sobre la barra de título para alternar maximizado
-                    if (click_interval <= 0.28) {
-                        toggle_maximize();
-                        m_last_titlebar_click_time = 0.0;
-                    } else {
-                        m_last_titlebar_click_time = current_time;
-                        start_dragging();
-                    }
-                }
-            } else {
-                auto dir = hit_test_resize_borders(cursor_pos, 8);
-                if (dir != ResizeDirection::None) {
-                    start_resizing(dir);
+                // Doble clic sobre la barra de título para alternar maximizado
+                if (click_interval <= 0.28) {
+                    toggle_maximize();
+                    m_last_titlebar_click_time = 0.0;
+                } else {
+                    m_last_titlebar_click_time = current_time;
+                    start_dragging();
                 }
             }
         }

@@ -15,3 +15,7 @@ target_link_libraries(puzzle_globals PUBLIC
     Freetype::Freetype
 )
 
+if(UNIX AND NOT APPLE)
+    find_package(X11 REQUIRED)
+    target_link_libraries(puzzle_globals PRIVATE ${X11_LIBRARIES})
+endif()

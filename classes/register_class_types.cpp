@@ -22,6 +22,7 @@
 
 #include "classes/interface/interface.h"
 #include "classes/interface/button.h"
+#include "classes/interface/label.h"
 
 
 void register_core_classes() {
@@ -40,6 +41,7 @@ void register_core_classes() {
 
     // Nodos Interfaz
     ClassDB::register_class<Button>();
+    ClassDB::register_class<Label>();
 
 }
 

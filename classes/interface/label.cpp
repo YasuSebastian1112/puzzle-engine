@@ -7,6 +7,7 @@
 
 #include "classes/interface/label.h"
 #include "globals/rendering_global/device/rendering_geometry.h"
+#include "core/class_db.h"
 
 Label::Label(const String& p_name)
     : Interface(p_name) {
@@ -83,4 +84,12 @@ void Label::_draw(RenderingGeometry* p_geometry) {
 
     // Dibujado del texto modulado con el color del nodo
     font->draw_text(p_geometry, draw_pos, text, get_global_modulate());
+}
+
+void Label::_bind_methods() {
+    // Propiedad principal del texto
+    ClassDB::add_property("text", &Label::set_text, &Label::get_text);
+
+    // Alineaciones de texto
+
 }
