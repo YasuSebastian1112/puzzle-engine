@@ -30,6 +30,13 @@ public:
         FullRect
     };
 
+    enum class Side {
+        Left   = 0,
+        Top    = 1,
+        Right  = 2,
+        Bottom = 3
+    };
+
     enum class FocusMode {
         None,
         Click,
@@ -52,11 +59,13 @@ public:
     void set_pivot_offset(const Vector2& p_pivot);
     Vector2 get_pivot_offset() const { return pivot_offset; }
 
+    virtual Vector2 get_minimum_size() const { return Vector2(0.0f, 0.0f); }
+
     Rect2 get_rect() const { return Rect2(position, size); }
     Rect2 get_global_rect() const;
 
     // --- Anclas Relativas (0.0 a 1.0 respecto al contenedor padre) ---
-    void set_anchor(int p_side, float p_ratio);
+    void set_anchor(Side p_side, float p_ratio);
     void set_anchors_preset(LayoutPreset p_preset);
 
     // --- Modulación y Visibilidad ---
@@ -81,22 +90,16 @@ public:
 
 private:
     Vector2 position = Vector2(0.0f, 0.0f);
-    Vector2 size = Vector2(0.0f, 0.0f);
+    Vector2 size = Vector2(40.0f, 40.0f);
     Vector2 scale = Vector2(1.0f, 1.0f);
     Vector2 pivot_offset = Vector2(0.0f, 0.0f);
     float rotation = 0.0f;
 
     // Anclas relativas al rectángulo del padre
-    float anchor_left = 0.0f;
-    float anchor_top = 0.0f;
-    float anchor_right = 0.0f;
+    float anchor_left   = 0.0f;
+    float anchor_top    = 0.0f;
+    float anchor_right  = 0.0f;
     float anchor_bottom = 0.0f;
-
-    // Márgenes/Offsets absolutos en píxeles
-    float offset_left = 0.0f;
-    float offset_top = 0.0f;
-    float offset_right = 0.0f;
-    float offset_bottom = 0.0f;
 
     Color modulate = Color(1.0f, 1.0f, 1.0f, 1.0f);
     bool visible = true;

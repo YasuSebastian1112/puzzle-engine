@@ -67,6 +67,7 @@ static void x11_start_moveresize(GLFWwindow* p_win, int p_direction) {
 #include "licenses_generated/logo.h"
 #include "licenses_generated/default_font.h"
 
+
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
@@ -228,11 +229,7 @@ bool Window::initialize(const String& p_title, const Size2i& p_size, const Point
 
     if (type == Type::Editor) {
         set_icon_from_memory(EmbeddedAssets::PUZZLE_LOGO_PNG, EmbeddedAssets::PUZZLE_LOGO_PNG_SIZE);
-        m_font_loaded = m_title_bar_font.load_font_from_memory(
-            EmbeddedAssets::DEFAULT_FONT_TTF,
-            EmbeddedAssets::DEFAULT_FONT_TTF_SIZE,
-        14
-    );
+        m_title_bar_font = FontResource::get_default_font(14);
 }
 
     update_viewports(physical_window_size.width, physical_window_size.height);
@@ -747,9 +744,9 @@ void Window::draw_title_bar(RenderingGeometry& p_geometry) {
     }
 
     // Título
-    if (m_font_loaded) {
-        float text_y = (BAR_HEIGHT - m_title_bar_font.get_line_height()) * 0.5f;
-        m_title_bar_font.draw_text(&p_geometry, Vector2(icon_offset_x, text_y), title, Color(0.85f, 0.85f, 0.90f, 1.0f));
+    if (m_title_bar_font.is_valid()) {
+        float text_y = (BAR_HEIGHT - m_title_bar_font->get_line_height()) * 0.5f;
+        m_title_bar_font->draw_text(&p_geometry, Vector2(icon_offset_x, text_y), title, Color(0.85f, 0.85f, 0.90f, 1.0f));
     }
 
     // Botones de control

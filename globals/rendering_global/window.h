@@ -14,6 +14,7 @@
 #include "globals/rendering_global/device/rendering_texture.h"
 #include "core/viewport.h"
 #include "globals/rendering_global/text/rendering_text.h"
+#include "classes/resources/font_resource.h"
 
 typedef struct GLFWcursor GLFWcursor;
 
@@ -64,7 +65,7 @@ private:
     RenderingDevice rendering_device;
     RenderingGeometry m_geometry;
     RenderingTexture m_title_bar_icon;
-    RenderingText m_title_bar_font;
+    Ref<FontResource> m_title_bar_font;
     bool m_icon_loaded = false;
     bool m_font_loaded = false;
     bool m_is_rendering = false;

@@ -36,8 +36,8 @@ private:
     int32_t geom_proj_loc = -1;
 
     // Capacidades de búfer para el pipeline geométrico
-    size_t current_max_vertex_bytes = 1024 * 1024 * 2; // 2 MB iniciales
-    size_t current_max_index_bytes  = 1024 * 512;      // 512 KB iniciales
+    size_t current_max_vertex_bytes = 1024 * 256; // 256 KB (ahorra ~1.75 MB por ventana)
+    size_t current_max_index_bytes  = 1024 * 128; // 128 KB (ahorra ~384 KB por ventana)
 
     // Dimensiones y métricas de ventana
     Size2i current_screen_size = Size2i(1280, 720);

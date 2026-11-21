@@ -9,10 +9,12 @@
 #include "core/time/engine_time.h"
 #include <algorithm>
 #include <iostream>
+#include "classes/resources/font_resource.h"
 
 #if defined(_WIN32)
 #include "platform/windows/os_windows.h"
 #endif
+
 
 RenderingGlobal& RenderingGlobal::get() {
     static RenderingGlobal instance;
@@ -41,6 +43,12 @@ void RenderingGlobal::shutdown() {
             win->close();
         }
     }
+
+    FontResource::clear_cache();
+    for (auto& win : windows) {
+        if (win) win->close();
+    }
+
     windows.clear();
 }
 
@@ -86,6 +94,15 @@ void RenderingGlobal::run(GlobalUpdateCallback p_global_update, ClosePolicy p_cl
 
 #if defined(_WIN32)
     OSWindows::initialize_system_timer();
+
+    static uint32_t startup_warmup_frames = 0;
+    if (startup_warmup_frames <= 3) {
+        startup_warmup_frames++;
+        if (startup_warmup_frames == 3) {
+            OSWindows::trim_memory();
+        }
+    }
+
 #endif
 
     Time::init();

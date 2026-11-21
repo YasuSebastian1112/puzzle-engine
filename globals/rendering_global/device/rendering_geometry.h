@@ -59,6 +59,7 @@ public:
     void draw_polyline(const std::vector<Vector2>& p_points, const Color& p_color, float p_width = 1.0f);
 
    //[[deprecated("Usar TextRenderer y FontResource para dibujar texto tipografico.")]]
+    [[deprecated("Usar RenderingText para dibujar texto tipografico.")]]
     void draw_text(const Vector2& p_pos, const String& p_text, const Color& p_color = Color(1.0f, 1.0f, 1.0f, 1.0f), float p_scale = 2.0f);
     
     void draw_texture(const Rect2& p_rect, uint32_t p_texture_id, const Color& p_modulate = Color(1.0f, 1.0f, 1.0f, 1.0f), const Rect2& p_src_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f));
