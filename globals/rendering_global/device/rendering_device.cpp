@@ -21,20 +21,24 @@
 // Shaders básicos integrados para el pipeline de geometría 2D
 
 static int s_glfw_window_count = 0;
+
 static const char* vertex_shader_src = R"(
 #version 330 core
 layout (location = 0) in vec2 a_pos;
 layout (location = 1) in vec4 a_color;
 layout (location = 2) in vec2 a_uv;
+layout (location = 3) in float a_tex_index;
 
 out vec4 v_color;
 out vec2 v_uv;
+out float v_tex_index;
 
 uniform mat4 u_projection;
 
 void main() {
     v_color = a_color;
     v_uv = a_uv;
+    v_tex_index = a_tex_index;
     gl_Position = u_projection * vec4(a_pos, 0.0, 1.0);
 }
 )";
@@ -43,13 +47,34 @@ static const char* fragment_shader_src = R"(
 #version 330 core
 in vec4 v_color;
 in vec2 v_uv;
+in float v_tex_index;
 
-uniform sampler2D u_texture;
+uniform sampler2D u_textures[16];
 
 out vec4 FragColor;
 
 void main() {
-    FragColor = texture(u_texture, v_uv) * v_color;
+    vec4 tex_color = vec4(1.0);
+    int idx = int(v_tex_index + 0.5);
+    switch (idx) {
+        case  0: tex_color = texture(u_textures[0],  v_uv); break;
+        case  1: tex_color = texture(u_textures[1],  v_uv); break;
+        case  2: tex_color = texture(u_textures[2],  v_uv); break;
+        case  3: tex_color = texture(u_textures[3],  v_uv); break;
+        case  4: tex_color = texture(u_textures[4],  v_uv); break;
+        case  5: tex_color = texture(u_textures[5],  v_uv); break;
+        case  6: tex_color = texture(u_textures[6],  v_uv); break;
+        case  7: tex_color = texture(u_textures[7],  v_uv); break;
+        case  8: tex_color = texture(u_textures[8],  v_uv); break;
+        case  9: tex_color = texture(u_textures[9],  v_uv); break;
+        case 10: tex_color = texture(u_textures[10], v_uv); break;
+        case 11: tex_color = texture(u_textures[11], v_uv); break;
+        case 12: tex_color = texture(u_textures[12], v_uv); break;
+        case 13: tex_color = texture(u_textures[13], v_uv); break;
+        case 14: tex_color = texture(u_textures[14], v_uv); break;
+        case 15: tex_color = texture(u_textures[15], v_uv); break;
+    }
+    FragColor = tex_color * v_color;
 }
 )";
 
@@ -454,21 +479,27 @@ void RenderingDevice::init_geometry_pipeline() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geom_ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, current_max_index_bytes, nullptr, GL_DYNAMIC_DRAW);
 
+    constexpr GLsizei STRIDE = sizeof(float) * 9;
+
     // Atributo 0: Posición (vec2, 2 floats)
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, reinterpret_cast<void*>(0));
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(0));
 
     // Atributo 1: Color (vec4, 4 floats)
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(float) * 8, reinterpret_cast<void*>(sizeof(float) * 2));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(sizeof(float) * 2));
 
     // Atributo 2: Coordenadas UV (vec2, 2 floats)
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, reinterpret_cast<void*>(sizeof(float) * 6));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(sizeof(float) * 6));
+
+    // Atributo 3: Índice de textura en el lote (float, 1 float)
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, STRIDE, reinterpret_cast<void*>(sizeof(float) * 8));
 
     glBindVertexArray(0);
 
-    // Crear textura blanca de respaldo (1x1 RGBA = 0xFFFFFFFF)
+    // Crear textura blanca de respaldo (1x1 RGBA = 0xFFFFFFFF) para primitivas de color sólido
     uint32_t white_pixel = 0xFFFFFFFF;
     glGenTextures(1, &m_default_white_texture);
     glBindTexture(GL_TEXTURE_2D, m_default_white_texture);
@@ -476,15 +507,20 @@ void RenderingDevice::init_geometry_pipeline() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
 
-    // Activar en el slot 0 por defecto
+    // Activar la textura blanca en el slot 0 por defecto
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_default_white_texture);
 
-    // Asegurar que el sampler use la unidad 0
-    GLint tex_loc = glGetUniformLocation(geom_shader, "u_texture");
+    // Vincular los 16 samplers u_textures[0..15] a las unidades GL_TEXTURE0..15
+    GLint samplers[16];
+    for (int i = 0; i < 16; ++i) {
+        samplers[i] = i;
+    }
+
+    GLint tex_loc = glGetUniformLocation(geom_shader, "u_textures");
     if (tex_loc != -1) {
         glUseProgram(geom_shader);
-        glUniform1i(tex_loc, 0);
+        glUniform1iv(tex_loc, 16, samplers);
     }
 }
 

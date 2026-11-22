@@ -18,12 +18,22 @@ RenderingGeometry::RenderingGeometry(RenderingDevice* p_device)
 }
 
 void RenderingGeometry::begin() {
+    m_draw_calls = 0;
     clear();
 }
 
 void RenderingGeometry::flush() {
     if (batched_vertices.empty() || batched_indices.empty() || !rendering_device) {
         return;
+    }
+
+    // Asegurar que el slot 0 siempre apunte a la textura blanca por defecto
+    texture_slots[0] = rendering_device->get_default_white_texture();
+
+    // Enlazar todas las texturas usadas en este lote
+    for (uint32_t i = 0; i < texture_slot_index; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, texture_slots[i]);
     }
 
     rendering_device->render_geometry(
@@ -33,12 +43,36 @@ void RenderingGeometry::flush() {
         batched_indices.size()
     );
 
+    m_draw_calls++;
     clear();
 }
 
 void RenderingGeometry::clear() {
     batched_vertices.clear();
     batched_indices.clear();
+    texture_slot_index = 1;
+}
+
+float RenderingGeometry::get_or_add_texture_slot(uint32_t p_texture_id) {
+    if (p_texture_id == 0 || (rendering_device && p_texture_id == rendering_device->get_default_white_texture())) {
+        return 0.0f;
+    }
+
+    // Buscar si la textura ya está enlazada en el lote actual
+    for (uint32_t i = 1; i < texture_slot_index; ++i) {
+        if (texture_slots[i] == p_texture_id) {
+            return static_cast<float>(i);
+        }
+    }
+
+    // Si llenamos los 16 slots, vaciamos el lote actual y empezamos uno nuevo
+    if (texture_slot_index >= MAX_TEXTURE_SLOTS) {
+        flush();
+    }
+
+    uint32_t slot = texture_slot_index++;
+    texture_slots[slot] = p_texture_id;
+    return static_cast<float>(slot);
 }
 
 void RenderingGeometry::draw_line(const Vector2& p_from, const Vector2& p_to, const Color& p_color, float p_width) {
@@ -215,16 +249,18 @@ void RenderingGeometry::draw_text(const Vector2& p_pos, const String& p_text, co
 void RenderingGeometry::push_quad(
     const Vector2& v0, const Vector2& v1, const Vector2& v2, const Vector2& v3,
     const Vector2& uv0, const Vector2& uv1, const Vector2& uv2, const Vector2& uv3,
-    const Color& p_color
+    const Color& p_color,
+    uint32_t p_texture_id
 ) {
     check_batch_overflow(4, 6);
+    float tex_idx = get_or_add_texture_slot(p_texture_id);
 
     uint32_t base_index = static_cast<uint32_t>(batched_vertices.size());
 
-    batched_vertices.push_back({ v0, p_color, uv0 });
-    batched_vertices.push_back({ v1, p_color, uv1 });
-    batched_vertices.push_back({ v2, p_color, uv2 });
-    batched_vertices.push_back({ v3, p_color, uv3 });
+    batched_vertices.push_back({ v0, p_color, uv0, tex_idx });
+    batched_vertices.push_back({ v1, p_color, uv1, tex_idx });
+    batched_vertices.push_back({ v2, p_color, uv2, tex_idx });
+    batched_vertices.push_back({ v3, p_color, uv3, tex_idx });
 
     batched_indices.push_back(base_index + 0);
     batched_indices.push_back(base_index + 1);

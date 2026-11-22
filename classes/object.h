@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -99,12 +100,20 @@ public:
     Object();
     virtual ~Object();
 
-private:
-    ObjectID instance_id;
-    bool queued_for_deletion = false;
+    // No copiable, pero movible (compatible con std::unique_ptr y std::vector)
+    Object(const Object&) = delete;
+    Object& operator=(const Object&) = delete;
+    Object(Object&&) noexcept = default;
+    Object& operator=(Object&&) noexcept = default;
 
-    std::unordered_map<std::string, std::vector<SignalCallback>> signal_map;
-    std::unordered_map<std::string, Variant> metadata;
+private:
+    using SignalMap = std::unordered_map<std::string, std::vector<SignalCallback>>;
+    using MetaMap   = std::unordered_map<std::string, Variant>;
+
+    ObjectID instance_id;
+    std::unique_ptr<SignalMap> signal_map;
+    std::unique_ptr<MetaMap> metadata;
+    bool queued_for_deletion = false;
 
     static inline ObjectID next_instance_id = 1;
 };

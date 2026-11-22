@@ -200,16 +200,5 @@ void RenderingTexture::draw_quad(
 ) const {
     if (!p_geometry || m_texture_id == 0) return;
 
-    RenderingDevice* device = p_geometry->get_rendering_device();
-    if (!device) return;
-
-    // Vaciar geometría previa para no contaminar el lote con esta textura
-    p_geometry->flush();
-
-    bind(0);
-    p_geometry->push_quad(v0, v1, v2, v3, uv0, uv1, uv2, uv3, p_color);
-    p_geometry->flush();
-
-    // Restaurar textura blanca por defecto para primitivas de color sólido
-    glBindTexture(GL_TEXTURE_2D, device->get_default_white_texture());
+    p_geometry->push_quad(v0, v1, v2, v3, uv0, uv1, uv2, uv3, p_color, m_texture_id);
 }

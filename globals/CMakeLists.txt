@@ -12,7 +12,6 @@ target_link_libraries(puzzle_globals PUBLIC
     glad
     glfw
     OpenGL::GL
-    Freetype::Freetype
 )
 
 if(UNIX AND NOT APPLE)

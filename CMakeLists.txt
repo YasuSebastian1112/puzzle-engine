@@ -12,7 +12,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin")
 # Dependencias externas
 include(FetchContent)
 find_package(OpenGL REQUIRED)
-find_package(Freetype REQUIRED)
 
 FetchContent_Declare(
     glfw
@@ -59,14 +58,3 @@ if (WIN32)
     )
 endif()
 
-find_package(Freetype QUIET)
-if(NOT Freetype_FOUND)
-    include(FetchContent)
-    FetchContent_Declare(
-        freetype
-        GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
-        GIT_TAG VER-2-13-3
-    )
-    FetchContent_MakeAvailable(freetype)
-    add_library(Freetype::Freetype ALIAS freetype)
-endif()
