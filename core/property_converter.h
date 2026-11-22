@@ -7,11 +7,19 @@
 
 #pragma once
 
+
+/*Estructuras*/
 #include <string>
 #include <vector>
 #include "core/mathematics/math_2d.h"
 #include "core/mathematics/transform_2d.h"
 #include "core/color.h"
+
+
+/*Recursos*/
+#include "classes/resources/texture_2d.h"
+#include "classes/resources/font_resource.h"
+
 
 template <typename T>
 struct PropertyConverter;
@@ -124,5 +132,59 @@ struct PropertyConverter<Color> {
     static std::string to_string(const Color& c) {
         return "Color(" + std::to_string(c.r) + ", " + std::to_string(c.g) + ", " + 
                std::to_string(c.b) + ", " + std::to_string(c.a) + ")";
+    }
+};
+
+template <>
+struct PropertyConverter<Ref<Texture2D>> {
+    static Ref<Texture2D> from_args(const std::vector<std::string>& args) {
+        if (args.empty() || args[0] == "null" || args[0] == "none") {
+            return Ref<Texture2D>();
+        }
+
+        bool filter_linear = (args.size() >= 2 && (args[1] == "linear" || args[1] == "true" || args[1] == "1"));
+        Ref<Texture2D> tex = new Texture2D();
+        if (tex->load(args[0], filter_linear)) {
+            return tex;
+        }
+        return Ref<Texture2D>();
+    }
+
+    static std::string to_string(const Ref<Texture2D>& val) {
+        if (!val.is_valid()) return "null";
+        const std::string& p = val->get_path();
+        return "Texture2D(" + (p.empty() ? "memory" : p) + ", " +
+               std::to_string(val->get_width()) + "x" + std::to_string(val->get_height()) + ")";
+    }
+};
+
+template <>
+struct PropertyConverter<Ref<FontResource>> {
+    static Ref<FontResource> from_args(const std::vector<std::string>& args) {
+        if (args.empty() || args[0] == "null" || args[0] == "none") {
+            return Ref<FontResource>();
+        }
+
+        uint32_t px_size = 16;
+        if (args.size() >= 2) {
+            try { px_size = static_cast<uint32_t>(std::stoul(args[1])); } catch (...) {}
+        }
+
+        if (args[0] == "default") {
+            return FontResource::get_default_font(px_size);
+        }
+
+        Ref<FontResource> font = new FontResource();
+        if (font->load_from_file(args[0], px_size)) {
+            return font;
+        }
+        return Ref<FontResource>();
+    }
+
+    static std::string to_string(const Ref<FontResource>& val) {
+        if (!val.is_valid()) return "null";
+        const std::string& p = val->get_path();
+        return "FontResource(" + (p.empty() ? "embedded_default" : p) + ", " +
+               std::to_string(val->get_font_size()) + "px)";
     }
 };

@@ -38,3 +38,5 @@ public:
 
     const RenderingTexture& get_rendering_texture() const { return m_texture; }
 };
+
+inline void Texture2D::_bind_methods() {}

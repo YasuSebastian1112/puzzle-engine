@@ -23,3 +23,5 @@ public:
     virtual uint32_t get_rid() const = 0; // ID del handle OpenGL (GL_TEXTURE_2D)
     virtual bool is_valid() const = 0;
 };
+
+inline void Texture::_bind_methods() {}

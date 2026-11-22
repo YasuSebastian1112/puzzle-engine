@@ -44,7 +44,7 @@ public:
         T::_bind_methods();
     }
 
-    // Sobrecarga 1: Setter por valor (ej: void set_rotation(float))
+    
     template <typename T, typename PropType, typename RetType>
     static void add_property(
         const std::string& prop_name,
@@ -74,7 +74,6 @@ public:
         get_singleton().add_property_internal(T::get_class_static(), prop);
     }
 
-    // Sobrecarga 2: Setter por referencia constante (ej: void set_name(const String&))
     template <typename T, typename PropType, typename RetType>
     static void add_property(
         const std::string& prop_name,

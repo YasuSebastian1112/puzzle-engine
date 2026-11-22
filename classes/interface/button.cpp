@@ -124,4 +124,7 @@ void Button::_draw(RenderingGeometry* p_geometry) {
 void Button::_bind_methods() {
     ClassDB::add_property("text", &Button::set_text, &Button::get_text);
     ClassDB::add_property("disabled", &Button::set_disabled, &Button::is_disabled);
+
+    ClassDB::add_property("font", &Button::set_font, &Button::get_font);
+
 }

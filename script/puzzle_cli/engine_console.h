@@ -36,10 +36,12 @@ private:
     std::queue<std::string> pending_commands;
     std::vector<std::string> command_history;
     std::mutex queue_mutex;
+    mutable std::mutex history_mutex;
     std::thread input_thread;
     std::atomic<bool> is_running{false};
 
     void read_input_loop();
+    std::string read_line_interactive();
     void print_logo();
     void print_prompt_box();
 };

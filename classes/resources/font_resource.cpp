@@ -68,3 +68,5 @@ void FontResource::draw_text(
     if (!m_loaded) return;
     m_rendering_text.draw_text(p_geometry, p_position, p_text, p_color);
 }
+
+void FontResource::_bind_methods() {}

@@ -87,4 +87,7 @@ void Sprite2D::_bind_methods() {
     ClassDB::add_property("offset",   &Sprite2D::set_offset,   &Sprite2D::get_offset);
     ClassDB::add_property("flip_h",   &Sprite2D::set_flip_h,   &Sprite2D::is_flipped_h);
     ClassDB::add_property("flip_v",   &Sprite2D::set_flip_v,   &Sprite2D::is_flipped_v);
+
+    ClassDB::add_property("texture", &Sprite2D::set_texture, &Sprite2D::get_texture);
+
 }

@@ -11,6 +11,13 @@
 // Clases base
 #include "object.h"
 #include "classes/node.h"
+#include "classes/resource.h"
+#include "globals/rendering_global/window.h"
+
+// Recursos
+#include "classes/resources/texture.h"
+#include "classes/resources/texture_2d.h"
+#include "classes/resources/font_resource.h"
 
 // Clases 2D
 #include "classes/spatial_2d.h"
@@ -19,15 +26,20 @@
 #include "classes/2d/sprite_2d.h"
 
 // Clases de interfaz
-
 #include "classes/interface/interface.h"
 #include "classes/interface/button.h"
 #include "classes/interface/label.h"
 
-
 void register_core_classes() {
-    // Raíz
+    // Raíz y base
     ClassDB::register_class<Object>();
+    ClassDB::register_class<Resource>();
+    ClassDB::register_class<Window>();
+
+    // Recursos
+    ClassDB::register_class<Texture>();
+    ClassDB::register_class<Texture2D>();
+    ClassDB::register_class<FontResource>();
 
     // Nodos Principales
     ClassDB::register_class<Node>();
@@ -42,9 +54,4 @@ void register_core_classes() {
     // Nodos Interfaz
     ClassDB::register_class<Button>();
     ClassDB::register_class<Label>();
-
-}
-
-void unregister_core_classes() {
-    // Limpieza o desregistro futuro si fuese necesario
 }

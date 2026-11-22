@@ -13,18 +13,19 @@ class Resource : public RefCounted {
     CLASS_TYPE(Resource, RefCounted);
 
 private:
-    std::string path;
-    std::string name;
+    String path;
+    String name;
 
 public:
     Resource() = default;
     virtual ~Resource() = default;
 
-    void set_path(const std::string& p_path) { path = p_path; }
-    const std::string& get_path() const { return path; }
+    void set_path(String p_path) { path = p_path; }
+    String get_path() const { return path; }
 
-    void set_name(const std::string& p_name) { name = p_name; }
-    const std::string& get_name() const { return name; }
+    void set_name(String p_name) { name = p_name; }
+    String get_name() const { return name; }
 
     virtual void reload_from_file() {}
 };
+

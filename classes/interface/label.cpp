@@ -96,4 +96,6 @@ void Label::_draw(RenderingGeometry* p_geometry) {
 void Label::_bind_methods() {
     ClassDB::add_property("text", &Label::set_text, &Label::get_text);
     ClassDB::add_property("font_color", &Label::set_font_color, &Label::get_font_color);
+
+    ClassDB::add_property("font", &Label::set_font, &Label::get_font);
 }
